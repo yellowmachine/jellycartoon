@@ -131,8 +131,6 @@ Bun.serve({
 				return json({ base: `${origin}/pase`, images: `${origin}/pase`, expires: later() });
 			case '/api/v1/musica/dj':
 				return json({ enabled: false, voices: false, presets: [] });
-			case '/api/v1/telegram':
-				return json({ connected: false });
 		}
 		const list = pathname.match(/^\/api\/v1\/musica\/listas\/(\d+)$/);
 		if (list) {

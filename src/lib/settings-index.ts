@@ -15,7 +15,6 @@ export interface SettingsShown {
 	intro: boolean | null;
 	keepHistory: boolean | null;
 	langua: unknown;
-	telegram: unknown;
 	musicApps: unknown;
 	voice: boolean;
 	music: boolean;
@@ -81,13 +80,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Lo que se guarda de ti',
 		words: 'historial guardar estadísticas privacidad horas',
 		shown: (d) => d.keepHistory !== null
-	},
-	{
-		id: 'telegram',
-		tab: 'mi',
-		title: 'Telegram',
-		words: 'telegram mensajes coche carretera leer voz conducir chat',
-		shown: (d) => Boolean(d.telegram)
 	},
 	{
 		id: 'langua',

@@ -1346,29 +1346,3 @@ export const alarmPerson = pgTable(
 	},
 	(t) => [primaryKey({ columns: [t.alarmId, t.userId] })]
 );
-
-/**
- * A person's own Telegram account (#243), connected in Ajustes: its messages read aloud in the road
- * mode. `apiHash` and `session` (GramJS's StringSession, full access to the account) encrypted
- * (secret-box.ts).
- */
-export const telegramAccount = pgTable('telegram_account', {
-	userId: text('user_id')
-		.primaryKey()
-		.references(() => user.id, { onDelete: 'cascade' }),
-	apiId: integer('api_id').notNull(),
-	apiHash: text('api_hash').notNull(),
-	session: text('session').notNull(),
-	/** As Telegram says it: «Miguel Ángel», to show who is connected. */
-	name: text('name'),
-	/** Groups' messages read too; by default only private chats. */
-	groups: boolean('groups').notNull().default(false),
-	/** Marked as read once read aloud. */
-	markRead: boolean('mark_read').notNull().default(false),
-	/**
-	 * The chats Seilide learns from (#331, phase 5): what is said there, both ways, passed to it, to
-	 * be offered in their «Buzón» as something to remember. None, by default.
-	 */
-	learnChats: jsonb('learn_chats').$type<{ id: string; name: string }[]>().notNull().default([]),
-	createdAt: timestamp('created_at').notNull().defaultNow()
-});

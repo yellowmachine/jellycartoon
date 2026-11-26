@@ -21,7 +21,6 @@ const admin: SettingsShown = {
 	intro: true,
 	keepHistory: false,
 	langua: {},
-	telegram: {},
 	musicApps: {},
 	voice: true,
 	music: true,

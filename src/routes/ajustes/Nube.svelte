@@ -16,8 +16,8 @@
 			Para que Seilide use lo de esta casa, por el túnel
 			{#if data.cloudKeys.host}(<span class="font-mono">{data.cloudKeys.host}</span>){/if}: las
 			series y la música fuera de casa, también para los peques; lo que la voz hace aquí (la música,
-			los altavoces, los vídeos) y el Telegram de cada uno. Con una clave que se guarda en el
-			servidor de Seilide, nunca en el navegador.
+			los altavoces, los vídeos). Con una clave que se guarda en el servidor de Seilide, nunca en el
+			navegador.
 		</p>
 
 		{#if form && 'cloudKey' in form}

@@ -54,11 +54,6 @@ import {
 	startTimerAt
 } from '#lib/server/alarms/alarms.ts';
 import { cloudSatellite, type Satellite } from '#lib/server/satellites.ts';
-import {
-	runTelegramTool,
-	TELEGRAM_TOOLS,
-	telegramTools
-} from '#lib/server/voice/telegram-tools.ts';
 import { allowedMovies, isKidAccount } from '#lib/server/kids.ts';
 import {
 	MAX_STOP_LATER_MIN,
@@ -172,7 +167,6 @@ async function openOrder(
 	const film = satellite || kid ? null : await filmToAsk(request.film);
 	const tools = [
 		...(satellite ? [] : historyTools({ self: user })),
-		...(await telegramTools(user.id, Boolean(satellite))),
 		...(film ? [askFilmTool] : [])
 	];
 	orders.set(order, {
@@ -299,12 +293,6 @@ async function hand(
 	ctx: Order & { outcome: Outcome }
 ): Promise<ToolResult> {
 	if (HISTORY_TOOLS.has(name)) return runHistoryTool(name, args, { self: ctx.user });
-	if (TELEGRAM_TOOLS.has(name))
-		return runTelegramTool(name, args, {
-			userId: ctx.user.id,
-			satellite: ctx.satelliteName,
-			order: ctx.order
-		});
 	if (name === 'ask_about_film') {
 		const question = typeof args.question === 'string' ? args.question.trim() : '';
 		if (!ctx.film) return 'No hay ninguna película en la pantalla.';

@@ -7,7 +7,6 @@
 	import AvatarPicker from 'comun/components/AvatarPicker.svelte';
 	import PasswordInput from 'comun/components/PasswordInput.svelte';
 	import PushNotices from 'comun/components/PushNotices.svelte';
-	import TelegramBot from './TelegramBot.svelte';
 	import Espacio from './Espacio.svelte';
 	import TuMusica from './TuMusica.svelte';
 	import TusJuegos from './TusJuegos.svelte';
@@ -727,8 +726,6 @@
 				<p class="mt-3 text-sm text-red-400">{form.orsProblem}</p>
 			{/if}
 		</section>
-
-		<TelegramBot {data} {form} {tab} />
 
 		<section class={section} id="casa">
 			<h2 class="mb-1 font-semibold">Tu casa</h2>

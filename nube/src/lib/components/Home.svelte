@@ -58,7 +58,7 @@
 			steps: { key: boolean; invited: boolean } | null;
 		};
 		weather: Promise<(WeatherGlance & { place: string }) | null>;
-		/** Their unread news (#428), if they have their Miniflux in Ajustes. */
+		/** Their unread news (#428), if they have their reader in Ajustes. */
 		news: Promise<NewsCard | null>;
 		/** Their next trip (Viajes → Próximos): its next leg, its weather, and the one after. */
 		trip: Promise<{
@@ -179,9 +179,9 @@
 	]);
 	const pending = $derived(steps.some((s) => !s.done));
 
-	// A piece of news opened: off the card, and read in Miniflux, without holding up the link.
-	let readNews = $state<number[]>([]);
-	function openedNews(id: number) {
+	// A piece of news opened: off the card, and read in their reader, without holding up the link.
+	let readNews = $state<string[]>([]);
+	function openedNews(id: string) {
 		if (readNews.includes(id)) return;
 		readNews.push(id);
 		void fetch('/api/noticias/leida', {
@@ -193,16 +193,16 @@
 	}
 	// The category chosen on the card: kept on this device. null is «Todas».
 	const NEWS_GROUP_KEY = 'seilide:noticias-categoria';
-	let newsGroup = $state<number | null>(null);
+	let newsGroup = $state<string | null>(null);
 	onMount(() => {
 		try {
-			const saved = Number(localStorage.getItem(NEWS_GROUP_KEY));
-			newsGroup = Number.isSafeInteger(saved) && saved > 0 ? saved : null;
+			// A folder's name; one no longer there shows «Todas».
+			newsGroup = localStorage.getItem(NEWS_GROUP_KEY) || null;
 		} catch {
 			// A private window: «Todas».
 		}
 	});
-	function chooseNewsGroup(id: number | null) {
+	function chooseNewsGroup(id: string | null) {
 		newsGroup = id;
 		try {
 			if (id === null) localStorage.removeItem(NEWS_GROUP_KEY);
@@ -514,18 +514,18 @@
 					href={card.url}
 					target="_blank"
 					rel="noopener"
-					class="text-sm text-amber-400 hover:underline">Miniflux</a
+					class="text-sm text-amber-400 hover:underline">Abrir el lector</a
 				>
 			</div>
 			{#if card.problem === 'key'}
 				<p class="text-sm text-zinc-400">
-					Miniflux no acepta la clave.
+					Tu lector de noticias no te deja entrar.
 					<a href="/ajustes?seccion=mi#noticias" class="text-amber-400 hover:underline"
-						>Cámbiala en Ajustes</a
+						>Conéctalo otra vez en Ajustes</a
 					>
 				</p>
 			{:else if card.problem === 'down'}
-				<p class="text-sm text-zinc-400">Miniflux no contesta ahora.</p>
+				<p class="text-sm text-zinc-400">Tu lector de noticias no contesta ahora.</p>
 			{:else}
 				{#if card.groups.length > 1}
 					<div

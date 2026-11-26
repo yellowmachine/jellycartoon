@@ -9,7 +9,7 @@ import { familyOnlyScope } from './family-scope.ts';
 import type { Kitchen } from './fridge.ts';
 import { newSatelliteKey, satelliteKeyScope } from './satellite-key-scope.ts';
 
-// Its clock's neighbours, faked: no house, no phones, no Telegram.
+// Its clock's neighbours, faked: no house, no phones.
 mock.module('#lib/server/house.ts', () => ({
 	tellHouse: async () => ({ where: '' }),
 	familyHasHouse: async () => false,
@@ -26,7 +26,6 @@ mock.module('#lib/server/satellites.ts', () => ({
 mock.module('#lib/server/push.ts', () => ({ notify: async () => {} }));
 // Their inbox (#331) tells the phones: faked as they are.
 mock.module('#lib/server/inbox.ts', () => ({ tell: async () => {} }));
-mock.module('#lib/server/telegram/bot.ts', () => ({ tellGroup: async () => {} }));
 mock.module('#lib/server/agenda/agenda.ts', () => ({ toldOf: async () => [] }));
 
 const { cancelTimersAt, describeTimersAt, ringingFor, startTimerAt, stopRingingAt } =

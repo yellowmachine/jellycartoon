@@ -14,7 +14,6 @@ import type { Kitchen } from '#lib/server/fridge.ts';
 import { familyHasHouse, tellHouse } from '#lib/server/house.ts';
 import { familySatellites, snapserverOf } from '#lib/server/satellites.ts';
 import { tell } from '#lib/server/inbox.ts';
-import { tellGroup } from '#lib/server/telegram/bot.ts';
 import { toldOf } from '#lib/server/agenda/agenda.ts';
 import { nextRing } from './next.ts';
 
@@ -22,8 +21,8 @@ import { nextRing } from './next.ts';
  * The family's alarms (#253; jellycartoon's #241): set in the Agenda or by the house's voice, for
  * the house or for some people. The cloud keeps their time; when it comes, it tells the house
  * (/api/v1/avisos), which rings them where they are to sound («din-don» and its name, again and
- * again) until someone stops them, there or here; and the phones of whom it is for (Web Push), and
- * the family's group if it is the house's (its Telegram bot).
+ * again) until someone stops them, there or here; and the phones of whom it is for (Web Push), or
+ * of the whole family if it is the house's.
  * The timers said to the cloud (Hablar, the road mode) are rows here too, rung once at their end:
  * on the phones of who set them (`movil`), or in the house if they said so. The house's own (its
  * satellites'), there; those of the satellites Seilide serves (#296), here, rung by this clock and
@@ -591,8 +590,6 @@ async function ringAtHouse(k: Kitchen, row: Row) {
 		// Later, it has stopped sounding: no use.
 		ttl: RING_MAX_MS / 1000
 	});
-	// The house's, to the family's group too (its bot).
-	if (!people.length) await tellGroup(k.familyId, 'alarmas', `⏰ Suena: ${row.label}`);
 }
 
 // ——— The satellites Seilide serves (#296) ———

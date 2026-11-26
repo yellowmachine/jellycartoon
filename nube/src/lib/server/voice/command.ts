@@ -61,7 +61,6 @@ import {
 	startTimer,
 	startTimerAt
 } from '#lib/server/alarms/alarms.ts';
-import { botHasGroup, sayInGroup } from '#lib/server/telegram/bot.ts';
 import { tellHouse } from '#lib/server/house.ts';
 import { orsFor } from '#lib/server/road/ors.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/trips/places.ts';
@@ -131,7 +130,7 @@ import { localDay, localTime } from 'comun/agenda.ts';
 /**
  * Voice commands (#33), the family's brain since #253: what was said in the house, to a model with
  * the actions as tools, and said back in a sentence to be read aloud. The family's own (the fridge,
- * the recipes, the expenses, the agenda and the alarms, its Telegram group, the web) are done here;
+ * the recipes, the expenses, the agenda and the alarms, the web) are done here;
  * the house's (its music and speakers, its videos, what each one watched, its satellites' timers…),
  * asked of the house (`HOUSE_TOOLS`, its /api/v1/voz), which sent the order with what only it knows
  * (comun/house-voice.ts).
@@ -1006,7 +1005,7 @@ const messageTool: Tool = {
 	function: {
 		name: 'leave_message',
 		description:
-			'Deja un recado en el buzón de alguien de la familia, con aviso en su móvil («déjale un recado a Ana: que compre pan», «dile a papá que ya he llegado»). No para el grupo de Telegram ni para recordar algo uno mismo.',
+			'Deja un recado en el buzón de alguien de la familia, con aviso en su móvil («déjale un recado a Ana: que compre pan», «dile a papá que ya he llegado»). No para recordar algo uno mismo.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -1132,24 +1131,6 @@ const markDoseTool: Tool = {
 /** A dose counts as «now» from this long before its time. */
 const DOSE_EARLY_MIN = 60;
 
-/** The family's Telegram group (#243), with its bot: only when it is in one. */
-const groupSayTool: Tool = {
-	type: 'function',
-	function: {
-		name: 'group_say',
-		description:
-			'Dice algo en el grupo de Telegram de la familia, con el bot de la casa («di en el grupo que ya está la comida», «avisa a la familia de que llego tarde»). Sale como el bot, diciendo de quién o de dónde viene.',
-		parameters: {
-			type: 'object',
-			properties: {
-				text: { type: 'string', description: 'Lo que hay que decir, corto: «Ya está la comida».' }
-			},
-			required: ['text'],
-			additionalProperties: false
-		}
-	}
-};
-
 /**
  * What the model knows before calling anything: how to answer, the library and the stations. The
  * same from one command to the next, so that it is cached; what sounds now goes with each command.
@@ -1231,7 +1212,6 @@ El tiempo («¿qué tiempo hará mañana?», «¿llueve esta tarde?», «¿hace 
 
 Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
 Actualidad que no sabes (resultados, noticias, horarios, precios): «web_search» si la tienes, con la pregunta completa, y contesta corto con lo que encuentre; si no la tienes, di que no puedes buscar en internet (se activa en Ajustes → La voz, en Seilide).
-Telegram: «dile a Ana que…», «contesta a…», «manda al grupo de… que…» son mensajes de su propia cuenta: «telegram_send» y luego «ask» («¿Le mando a Ana: "llego en diez minutos"?»), y con su respuesta «telegram_confirm»; nunca lo envíes sin su sí. «Di en el grupo que…», «avisa a la familia de que…» son del bot de la casa: «group_say». Si no tienes la herramienta, dile que no está conectado.
 Alarmas a una hora («despiértame a las 7», «todos los días laborables a las 7:30», «el jueves a las 9 la cita del médico»): «set_alarm». Con cada orden va la lista de alarmas, con su número: para quitarla, saltarse unos días sin quitarla («hoy ya me he levantado», «mañana no me despiertes», «en vacaciones no»), deshacer un salto, cambiarle la hora o los días, pausarla o pararla, «change_alarm» con ese número (nunca la quites para ponerla de nuevo); si no está claro cuál, usa «ask».
 - «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
 - «Otro de 5 minutos» es uno nuevo (nombre vacío), no el que ya hay de 5 minutos; «vuelve a empezar el de la pasta» sí usa su nombre.
@@ -1300,7 +1280,7 @@ export const putOn = (timing: VoiceTiming) =>
 /**
  * The house's own, done there (its /api/v1/voz): its music and speakers, its videos, its satellites'
  * and devices' timers, Langua;
- * and the tools it sent with the order (what each one watched, their Telegram).
+ * and the tools it sent with the order (what each one watched).
  */
 const HOUSE_TOOLS = new Set([
 	'search_music',
@@ -1676,18 +1656,6 @@ async function runTool(
 				fromDay: text(args.from_day),
 				untilDay: text(args.until_day)
 			});
-		}
-		case 'group_say': {
-			const text = typeof args.text === 'string' ? args.text.trim().slice(0, 1000) : '';
-			if (!text) return 'Falta qué decir.';
-			const from = ctx.order.satellite
-				? `Desde ${ctx.order.satellite.name}`
-				: ctx.order.who.name || 'Alguien de casa';
-			try {
-				return `Dicho en el grupo «${await sayInGroup(ctx.k.familyId, from, text)}»: «${text}».`;
-			} catch (err) {
-				return err instanceof Error ? err.message : String(err);
-			}
 		}
 		case 'navigate_to': {
 			const wanted = typeof args.destination === 'string' ? args.destination.trim() : '';
@@ -2229,7 +2197,7 @@ function voiceMessageTool(people: Callable[]): Tool {
 		function: {
 			name: 'voice_message',
 			description:
-				'Mensajes de la familia (cifrados): «mándale un mensaje a papá», «manda un audio a la familia», «escríbele a la abuela». El aparato dice «Dime el mensaje» y graba aparte lo que diga después, que va cifrado: tú nunca pones ni repites el contenido. Si ya lo ha dicho en la orden («dile a papá que llego tarde»), avísale de que se lo pida otra vez el aparato para grabarlo. «A la familia», «al grupo»: to «familia». Si pide «por Telegram», es Telegram, no esto.',
+				'Mensajes de la familia (cifrados): «mándale un mensaje a papá», «manda un audio a la familia», «escríbele a la abuela». El aparato dice «Dime el mensaje» y graba aparte lo que diga después, que va cifrado: tú nunca pones ni repites el contenido. Si ya lo ha dicho en la orden («dile a papá que llego tarde»), avísale de que se lo pida otra vez el aparato para grabarlo. «A la familia», «al grupo», «avisa a la familia de que…»: to «familia».',
 			parameters: {
 				type: 'object',
 				properties: {
@@ -2443,7 +2411,6 @@ export async function runVoiceCommand(
 		sites,
 		personStyle,
 		me,
-		group,
 		learned,
 		remembered,
 		people,
@@ -2459,7 +2426,6 @@ export async function runVoiceCommand(
 		listRecipeSites(k),
 		k.userId && !satellite ? personVoiceStyle(k, k.userId) : null,
 		k.userId && !satellite ? personOf(k, k.userId) : null,
-		botHasGroup(k.familyId),
 		recallLearned(k, site, request.text),
 		kid ? null : recallMemories(k, memoryOf, request.text),
 		familyPeople(k),
@@ -2644,7 +2610,6 @@ export async function runVoiceCommand(
 	const available = [
 		...tools(house.speakers, house.rooms, house.salon, house.clipMinutes),
 		...(house.tools as Tool[]),
-		...(group ? [groupSayTool] : []),
 		messageTool,
 		...(kid ? [] : ruleTools(Boolean(satellite))),
 		...(kid || satellite ? [] : [markDoseTool]),

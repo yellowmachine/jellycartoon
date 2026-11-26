@@ -18,26 +18,14 @@ import { completeJson } from '#lib/server/openrouter.ts';
 import { inBackground, quietFor } from '#lib/server/ai-lane.ts';
 
 /**
- * What a Telegram message has worth remembering (#331, phase 5): one of the chats a person chose
- * (the house's Ajustes → Telegram), passed by the house in their name. Read by the family's AI in
- * OpenRouter, or, if it fails, by the house's Ollama (its /api/v1/ia/json); almost always nothing.
- * When there is something («llegamos el sábado a las 11»), it is offered in their «Buzón», with
- * «Guardar» and «No»: kept, it goes to their own memory, never on its own.
- *
- * And what is said to the voice (phase 6, if the family has it on): each order queued (heard.ts)
+ * What is said to the voice (#331, phase 6, if the family has it on): each order queued (heard.ts)
  * and read by batches once the voice is quiet (`learnPending`), whether it told something worth
  * remembering without «recuerda» («mañana no hay cole, es fiesta»): kept at once, marked as
  * learned from what was said (the voice says it with care), and each day at `SUMMARY_AT` the
- * day's in their «Buzón», each to take out with ×. Two ways, to see which works better.
+ * day's in their «Buzón», each to take out with ×. Read by the family's AI in OpenRouter, or, if it
+ * fails, by the house's Ollama (its /api/v1/ia/json). Learning from Telegram (phase 5) went with
+ * Telegram (#553).
  */
-
-export interface TelegramSaid {
-	/** The chat's name, as their Telegram has it. */
-	chat: string;
-	/** Who sent it; null, they themselves. */
-	from: string | null;
-	text: string;
-}
 
 /** An event worth having in the agenda, as the AI says it (phase 7); `titulo` empty, none. */
 interface Event {
@@ -59,30 +47,6 @@ const EVENT_SCHEMA = {
 
 const EVENT_LINE =
 	'Si además cuenta un plan o una cita con día que convenga tener en la Agenda de la familia («el viernes vienen mis padres a las 11»), «cita» con «titulo» corto («Vienen los padres de Ana»), «dia» (AAAA-MM-DD) y «hora» (HH:MM, o null si no la dice); si no, «titulo» vacío y lo demás null.';
-
-interface Learned {
-	merece: boolean;
-	recuerdo: string;
-	hasta: string | null;
-	cita: Event;
-}
-
-const SCHEMA = {
-	type: 'object',
-	additionalProperties: false,
-	required: ['merece', 'recuerdo', 'hasta', 'cita'],
-	properties: {
-		merece: { type: 'boolean' },
-		recuerdo: { type: 'string' },
-		hasta: { type: ['string', 'null'] },
-		cita: EVENT_SCHEMA
-	}
-};
-
-const SYSTEM = (today: string, who: string) =>
-	`Lees un mensaje de Telegram de ${who} y dices si tiene algo que merezca la pena recordar más adelante: un plan con fecha, una cita, un dato útil de la familia («llegamos el sábado a las 11», «el dentista es el martes a las 5», «la talla de Lucía ya es la 34»). Casi nunca: los saludos, las bromas, lo que solo vale ahora («ya voy»), las preguntas sin respuesta y la conversación, no. Hoy es ${dayName(today, true)} (${today}).
-Si merece, «recuerdo» en una frase corta que se entienda sola, con nombres y fechas de verdad, sin «yo» ni «mañana» («Los padres de ${who} llegan el sábado 8 a las 11»), y «hasta» el último día que vale (AAAA-MM-DD), o null si vale siempre. Si no, «merece» false, «recuerdo» vacío y «hasta» null.
-${EVENT_LINE}`;
 
 /** The AI's answer: OpenRouter's, else the house's Ollama's; null if neither answers. */
 async function read<T>(
@@ -149,43 +113,6 @@ async function proposeEvent(k: Kitchen, userId: string, event: Event, because: s
 		ttl: 0,
 		proposal: { type: 'cita', title, day, time, because }
 	});
-}
-
-/** A message of theirs: if it has something worth remembering, offered in their «Buzón». */
-export async function learnFromTelegram(
-	k: Kitchen,
-	userId: string,
-	who: string,
-	said: TelegramSaid
-) {
-	const today = localDay();
-	const by = said.from ?? who;
-	const prompt = `En «${said.chat}», ${by} escribe: «${said.text}»`;
-	const learned = await read<Learned>(
-		k,
-		'Aprender de Telegram',
-		SYSTEM(today, who),
-		prompt,
-		SCHEMA
-	);
-	const because = `de un mensaje de ${by} en «${said.chat}» en Telegram`;
-	if (learned?.cita) await proposeEvent(k, userId, learned.cita, because);
-	const text = learned?.merece ? learned.recuerdo.trim().slice(0, MAX_MEMORY) : '';
-	if (!text) return null;
-	const untilDay =
-		learned!.hasta && DAY.test(learned!.hasta) && learned!.hasta >= today ? learned!.hasta : null;
-	await keepInInbox(k, [userId], {
-		kind: 'propuesta',
-		title: '💡 ¿Lo recuerdo?',
-		body: text,
-		// The same, offered again while unanswered: in its place.
-		tag: `propuesta-${text.toLowerCase().slice(0, 80)}`,
-		url: '/buzon',
-		ttl: 0,
-		proposal: { text, untilDay, because }
-	});
-	console.info('[aprender] Propuesto', { userId, chat: said.chat });
-	return text;
 }
 
 // ——— From what is said to the voice (phase 6) ———

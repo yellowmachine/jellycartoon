@@ -8,8 +8,8 @@ import { envelope, isEnveloped, type Kms } from './envelope.ts';
 import { decrypt, encrypt } from './secret-box.ts';
 
 /**
- * A family's secrets (#326): its OpenRouter and openrouteservice keys, its house's key, its
- * Telegram bot's token and its children's credentials. With the KMS (the three SCW_* in env.ts),
+ * A family's secrets (#326): its OpenRouter and openrouteservice keys, its house's key and its
+ * children's credentials. With the KMS (the three SCW_* in env.ts),
  * kept with the family's own data key, wrapped by Scaleway's Key Manager (envelope.ts): a copy of
  * the database and of the `.env` is not enough to read them, as Key Manager only answers the VPS.
  * Without it, as before: secret-box.ts, with BETTER_AUTH_SECRET.

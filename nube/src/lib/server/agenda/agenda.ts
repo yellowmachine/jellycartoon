@@ -12,7 +12,6 @@ import {
 import type { AnyDb } from '#lib/server/family-scope.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { tell } from '#lib/server/inbox.ts';
-import { tellGroup } from '#lib/server/telegram/bot.ts';
 import { avatar, isAvatar } from 'comun/avatars.ts';
 import {
 	addDays,
@@ -348,22 +347,7 @@ export async function addEvent(k: Kitchen, input: EventInput) {
 		return row!.id;
 	});
 	changed(k.familyId);
-	void tellNew(k, input);
 	return id;
-}
-
-/** To the family's group (its bot): «📅 María ha apuntado: Dentista, jueves 30 a las 17:00». */
-async function tellNew(k: Kitchen, input: EventInput) {
-	const people = await agendaPeople(k);
-	const me = k.userId ? await personOf(k, k.userId) : null;
-	const by = people.find((p) => p.id === me)?.name ?? 'Alguien';
-	const when = `${dayName(input.startDay)}${input.startTime ? ` a las ${input.startTime}` : ''}`;
-	const who = names(people, input.people);
-	await tellGroup(
-		k.familyId,
-		'agenda',
-		`📅 ${by} ha apuntado: ${input.title}, ${when}${who ? ` (${who})` : ''}`
-	);
 }
 
 /**
@@ -544,11 +528,6 @@ export async function sendDue(k: Kitchen) {
 				url: `/agenda?dia=${day}`,
 				ttl: 6 * 3600
 			});
-			await tellGroup(
-				k.familyId,
-				'agenda',
-				`📅 ${e.remind === 'dia' ? 'Mañana' : 'En una hora'}: ${e.title} (${when}${who ? ` · ${who}` : ''})`
-			);
 			console.info(`[agenda] Aviso de «${e.title}» del ${day}`, { eventId: r.id });
 		}
 	}

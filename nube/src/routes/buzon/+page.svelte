@@ -7,8 +7,8 @@
 
 	/**
 	 * Tu Buzón (#331): lo que te ha avisado la app (la Agenda, las alarmas, la medicación, los
-	 * deberes, la voz, tus reglas), los recados que te dejan y lo que Seilide propone recordar de tus
-	 * chats de Telegram, lo último arriba; y para dejar uno a alguien de la familia. Solo lo ves tú.
+	 * deberes, la voz, tus reglas), los recados que te dejan y lo que Seilide propone recordar o
+	 * apuntar, lo último arriba; y para dejar uno a alguien de la familia. Solo lo ves tú.
 	 */
 	let { data, form }: PageProps = $props();
 

@@ -42,3 +42,19 @@ con su icono.
 - **Android (Chrome):** abre Seilide, toca el menú ⋮ y «Instalar aplicación» (o «Añadir a pantalla
   de inicio»).
 - **iPhone (Safari):** abre Seilide, toca el botón de compartir y «Añadir a pantalla de inicio».
+
+## Las noticias en el inicio
+
+Si usas un lector de noticias (RSS), sus noticias sin leer pueden salir en el inicio de Seilide,
+con un botón por carpeta. Al tocar una, se abre su web y queda como leída también en tu lector.
+Solo las ves tú.
+
+Sirve cualquier lector con la API de Google Reader, como Miniflux o FreshRSS. Se conecta en
+Ajustes → Para mí → Noticias, con la dirección de tu lector, tu usuario y la contraseña de API:
+
+- **Miniflux:** en Ajustes → Integraciones, activa «API de Google Reader» y elige un usuario y una
+  contraseña para ella. La dirección es la de tu Miniflux.
+- **FreshRSS:** quien lo administra permite el acceso por API, y tú pones una contraseña de API en
+  Perfil. El usuario es el tuyo y la dirección, la de tu FreshRSS.
+
+Seilide no guarda esa contraseña, solo el permiso que le da tu lector al entrar.

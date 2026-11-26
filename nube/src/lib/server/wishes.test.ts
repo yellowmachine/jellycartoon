@@ -119,7 +119,6 @@ const withFamily = familyScope(db, { role: 'app_user' });
 mock.module('#lib/server/db/index.ts', () => ({ db }));
 // What the agenda brings and the wishes never use: no one is told anything here.
 mock.module('#lib/server/inbox.ts', () => ({ tell: async () => {} }));
-mock.module('#lib/server/telegram/bot.ts', () => ({ tellGroup: async () => {} }));
 const {
 	addWish,
 	buyableWish,

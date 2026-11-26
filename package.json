@@ -78,7 +78,6 @@
 		"onnxruntime-web": "1.30.0",
 		"pmtiles": "^4.5.0",
 		"qrcode": "^1.5.4",
-		"telegram": "2.26.22",
 		"uqr": "0.1.2",
 		"web-push": "^3.6.7"
 	}

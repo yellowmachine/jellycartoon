@@ -122,16 +122,3 @@ export async function cloudAlarmStopped(cloudId: number) {
 		log.warn('avisos', 'Seilide no se enteró de que se ha parado', { cloudId, error });
 	}
 }
-
-// ——— The family's Telegram bot (#243), in the cloud ———
-
-/** A timer ringing, to the family's group if it hears that; never failing what happened here. */
-export async function tellGroup(text: string) {
-	try {
-		await askCloud(await linked(), '/telegram', {
-			body: { action: 'tell', event: 'temporizadores', text }
-		});
-	} catch (error) {
-		log.warn('telegram', 'No se pudo avisar al grupo', { error });
-	}
-}

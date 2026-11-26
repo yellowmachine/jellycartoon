@@ -35,8 +35,8 @@ export const inbox = pgTable(
 		/** A message's: who left it; null, a satellite or the app itself. */
 		fromUserId: text('from_user_id').references(() => user.id, { onDelete: 'set null' }),
 		/**
-		 * Something offered (#331): to remember (phase 5: from a Telegram message), a rule or an event
-		 * (phase 7); done with its yes, and gone once answered.
+		 * Something offered (#331): to remember (phase 5: from a Telegram message, before #553), a rule
+		 * or an event (phase 7); done with its yes, and gone once answered.
 		 */
 		proposal: jsonb('proposal').$type<Proposal>(),
 		/**

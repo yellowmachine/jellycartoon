@@ -58,7 +58,7 @@ necesita `ALTER ROLE nube_app PASSWORD '…'` en la base de datos.
 ## Las claves de cada familia (KMS)
 
 Lo que cada familia le da a Seilide y no puede salir de él (#326): su clave de OpenRouter y la de
-openrouteservice, la clave de su casa, el token de su bot de Telegram y la credencial con la que
+openrouteservice, la clave de su casa y la credencial con la que
 entra cada peque (no tienen contraseña). Se guarda cifrado con una **clave de datos de la familia**, y esa clave, a su vez, la
 envuelve [Scaleway Key Manager](https://www.scaleway.com/en/docs/key-manager/) (cifrado de sobre,
 `src/lib/server/family-secret.ts` y `envelope.ts`). En la base de datos solo está envuelta
@@ -103,7 +103,7 @@ tener en cuenta:
   arrancar, o Seilide no podrá leer los secretos.
 - **Si se pierde la clave de Key Manager o la cuenta de Scaleway**, los secretos ya no se pueden
   leer. Cada familia tiene que volver a poner los suyos en Ajustes: las claves de OpenRouter y de
-  openrouteservice (se crean otras en sus webs), la de su casa y su bot de Telegram. Los peques,
+  openrouteservice (se crean otras en sus webs) y la de su casa. Los peques,
   que entran con una credencial que solo sabe el servidor, no pueden entrar con la guardada. Lo
   demás de la base de datos no se pierde.
 - **Botón de emergencia:** revocando la clave de API de la aplicación de IAM, ninguna copia de la

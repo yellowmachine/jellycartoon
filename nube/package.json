@@ -65,7 +65,6 @@
 		"comun": "workspace:*",
 		"drizzle-orm": "^0.45.2",
 		"fast-xml-parser": "^5.11.2",
-		"grammy": "1.46.0",
 		"hls.js": "1.7.3",
 		"jsqr": "1.4.0",
 		"linkedom": "^0.18.15",

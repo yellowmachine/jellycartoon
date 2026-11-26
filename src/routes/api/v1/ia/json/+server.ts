@@ -8,7 +8,7 @@ const TIMEOUT_MS = 60_000;
 const MAX_TEXT = 8_000;
 
 /**
- * Seilide's AI when OpenRouter does not answer (#331, phase 5: what a Telegram message has worth
+ * Seilide's AI when OpenRouter does not answer (#331, phase 6: what was said to the voice worth
  * remembering): its instructions, what to read and the JSON schema of the answer, asked of the
  * house's Ollama (OLLAMA_URL, LABEL_MODEL, the model the episodes are labelled with, already
  * pulled) with its structured outputs (https://docs.ollama.com/capabilities/structured-outputs).

@@ -41,7 +41,6 @@ mock.module('#lib/server/inbox.ts', () => ({
 	tell: async (_: string, __: unknown, notice: { title: string; body: string }) =>
 		void notices.push(notice)
 }));
-mock.module('#lib/server/telegram/bot.ts', () => ({ tellGroup: async () => {} }));
 mock.module('#lib/server/agenda/agenda.ts', () => ({ toldOf: async () => [] }));
 
 const {

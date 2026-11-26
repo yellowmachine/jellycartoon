@@ -5,7 +5,7 @@ description: Mensajería propia de la familia, cifrada de extremo a extremo con 
 
 Mensajes de la familia cifrados de extremo a extremo con **MLS** (RFC 9420), con
 [ts-mls](https://github.com/LukaJCB/ts-mls) 1.6.4 (suite `MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519`)
-en cada aparato. Sustituye a Telegram (#549), que necesitaba la casa. Decisiones y prototipo en #551.
+en cada aparato. Sustituye a Telegram (#549), que necesitaba la casa y se quitó en #553. Decisiones y prototipo en #551.
 
 ## El servidor: solo reparte (`messages-scope.ts`)
 
@@ -169,7 +169,3 @@ cual. `MensajePendiente.svelte`: el grabado esperando, con Enviar y Borrar.
 mensaje de una época que el grupo ya dejó (`stale`): el aparato se pone al día, lo cifra otra vez y
 lo reenvía. Sin esto, alguien que escribía justo después de que otro activara un aparato mandaba un
 mensaje que nadie podía leer.
-
-## Pendiente (#551)
-
-Quitar Telegram.

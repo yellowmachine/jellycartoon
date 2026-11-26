@@ -5,8 +5,9 @@
 	import type { ActionData, PageData } from './$types';
 
 	/**
-	 * Noticias (#428): their Miniflux, for a card on the home page. The key is asked for on every
-	 * save: with the one kept, a stolen session could send it to another address.
+	 * Noticias (#428, #638): their news reader, by the Google Reader API (Miniflux, FreshRSS…), for
+	 * a card on the home page. The password is asked for on every save: with what is kept, a stolen
+	 * session could send it to another address. Only its login token is kept, not the password.
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 </script>
@@ -14,36 +15,62 @@
 <section class={section} id="noticias">
 	<h2 class="mb-1 font-semibold">Noticias</h2>
 	<p class="mb-3 text-sm text-zinc-400">
-		Tus noticias sin leer de Miniflux, en el inicio. Al pulsar una, se abre su web y queda como
-		leída. Solo las ves tú.
+		Las noticias sin leer de tu lector de noticias, en el inicio. Al pulsar una, se abre su web y
+		queda como leída. Solo las ves tú. Sirve cualquier lector con la API de Google Reader, como
+		Miniflux o FreshRSS.
 	</p>
-	<!-- Not reset: the address stays as it is saved. The key, never left on the page. -->
+	<details class="mb-3 text-sm text-zinc-400">
+		<summary class="cursor-pointer text-zinc-300">Cómo se activa en tu lector</summary>
+		<ul class="mt-2 list-disc space-y-1 pl-5">
+			<li>
+				<strong>Miniflux:</strong> en Ajustes → Integraciones, activa «API de Google Reader» y elige un
+				usuario y una contraseña para ella. La dirección es la de tu Miniflux.
+			</li>
+			<li>
+				<strong>FreshRSS:</strong> quien lo administra permite el acceso por API, y tú pones una
+				contraseña de API en Perfil. El usuario es el tuyo de FreshRSS, y la dirección, la de tu
+				FreshRSS (o la que acaba en <code>/api/greader.php</code>).
+			</li>
+		</ul>
+	</details>
+	<!-- Not reset: the address and user stay as saved. The password, never left on the page. -->
 	<form
 		method="post"
 		action="?seccion={tab}&/saveNews"
 		use:enhance={({ formElement }) =>
 			async ({ result, update }) => {
 				await update({ reset: false });
-				if (result.type === 'success') formElement.key.value = '';
+				if (result.type === 'success') formElement.password.value = '';
 			}}
 		class="flex flex-col gap-3"
 	>
 		<label class="flex flex-col gap-1 text-sm text-zinc-300">
-			Dirección de tu Miniflux
+			Dirección de tu lector
 			<input
 				name="url"
 				type="url"
 				required
 				maxlength="500"
-				placeholder="https://miniflux.example.org"
-				value={form && 'newsUrl' in form ? form.newsUrl : (data.news ?? '')}
+				placeholder="https://noticias.example.org"
+				value={form && 'newsUrl' in form ? form.newsUrl : (data.news?.url ?? '')}
 				class={field}
 			/>
 		</label>
 		<label class="flex flex-col gap-1 text-sm text-zinc-300">
-			Clave de API
+			Usuario
 			<input
-				name="key"
+				name="username"
+				required
+				maxlength="200"
+				autocomplete="username"
+				value={form && 'newsUser' in form ? form.newsUser : (data.news?.username ?? '')}
+				class={field}
+			/>
+		</label>
+		<label class="flex flex-col gap-1 text-sm text-zinc-300">
+			Contraseña de API
+			<input
+				name="password"
 				type="password"
 				required
 				maxlength="500"
@@ -52,7 +79,8 @@
 				class={field}
 			/>
 			<span class="text-xs text-zinc-500">
-				Se crea en Miniflux, en Settings → API Keys. No uses tu contraseña.
+				La de la API de Google Reader, no la de entrar en tu lector. Seilide no la guarda: solo el
+				permiso que le da tu lector al entrar.
 				{#if data.news}Para cambiar algo, escríbela otra vez.{/if}
 			</span>
 		</label>
@@ -72,7 +100,8 @@
 		{/if}
 		{#if form && 'saved' in form && form.saved === 'newsRemoved'}
 			<p class="text-sm text-zinc-400">
-				Quitado de Seilide. La clave sigue viva en Miniflux hasta que la borres allí.
+				Quitado de Seilide. Para que el permiso deje de servir, cambia la contraseña de API en tu
+				lector.
 			</p>
 		{/if}
 	</form>
