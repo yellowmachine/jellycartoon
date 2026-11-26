@@ -1,6 +1,9 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { enhance } from '$app/forms';
+	import { replaceState } from '$app/navigation';
+	import { page } from '$app/state';
+	import { takeSharedFile } from '#lib/shared-file.ts';
 	import { addMonths, euros, MONTH_NAMES, monthName } from 'comun/expenses.ts';
 	import { smallerPhoto } from 'comun/receipt-photo.ts';
 	import {
@@ -79,7 +82,10 @@
 		const original = input.files?.[0];
 		// The same file can be chosen again after cancelling.
 		input.value = '';
-		if (!original) return;
+		if (original) await fromFile(original);
+	}
+
+	async function fromFile(original: File) {
 		newOne();
 		reading = true;
 		const file = await asInvoice(original);
@@ -90,6 +96,20 @@
 		if (documentInput) documentInput.files = picked.files;
 		await readInvoice();
 	}
+
+	// From Gastos, read there as money that came in (a pension's transfer shared from the bank's
+	// app): read here again, as an income.
+	onMount(() => {
+		if (page.url.searchParams.get('compartido') !== 'archivo') return;
+		const url = new URL(page.url.href);
+		url.searchParams.delete('compartido');
+		replaceState(url, {});
+		void takeSharedFile().then((file) => {
+			if (file) return void fromFile(file);
+			newOne();
+			problem = 'No ha llegado el archivo: ponlo abajo, en la factura, o con «📄 Factura».';
+		});
+	});
 
 	/** The one asked «¿Borrar?» about. */
 	let deleting = $state<number | null>(null);

@@ -26,6 +26,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const hash = form.get('huella');
 	try {
 		const draft = await readBill(k, bytes, isPdf);
+		// Money that came in: Gastos offers to take it to Ingresos; nothing to compare with expenses.
+		if (draft.income) return json({ ...draft, repeated: null, fixed: null, merge: null });
 		// Put in before (#440): said already while checking what was read.
 		const repeated = await lookingSame(k, {
 			id: null,

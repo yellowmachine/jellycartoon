@@ -115,6 +115,8 @@ export interface ExpenseDraft extends ExpenseInput {
 	readBy: 'ollama' | 'openrouter';
 	/** A bill's (#232), with what it says of the supply. */
 	bill: BillInput | null;
+	/** Read as money that came in, not paid (a pension's transfer): for Ingresos instead. */
+	income?: boolean;
 }
 
 /**

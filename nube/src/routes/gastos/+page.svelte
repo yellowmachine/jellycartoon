@@ -3,7 +3,7 @@
 	import { onMount, tick, untrack } from 'svelte';
 	import { applyAction, deserialize, enhance } from '$app/forms';
 	import { refreshAll } from '$app/navigation';
-	import { afterNavigate, replaceState } from '$app/navigation';
+	import { afterNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { openedInUrl } from '#lib/opened-in-url.ts';
 	import {
@@ -55,7 +55,7 @@
 	import { fileHash, smallerPhoto } from 'comun/receipt-photo.ts';
 	import { mergeText, type MergeNotice, sameText, type LooksSame } from 'comun/page-notices.ts';
 	import { filterExpenses, isFiltered, noFilter } from '#lib/expense-filter.ts';
-	import { takeSharedFile } from '#lib/shared-file.ts';
+	import { passSharedFile, takeSharedFile } from '#lib/shared-file.ts';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import type { PageProps } from './$types';
 
@@ -87,6 +87,8 @@
 		fixed?: FixedMatch | null;
 		/** The fixed one it is the month's receipt of (#501): said in the title. */
 		receiptOf?: string | null;
+		/** Read as money that came in (a pension's transfer): offered to take it to Ingresos. */
+		income?: boolean;
 		date: string;
 		store: string;
 		category: ExpenseCategory;
@@ -349,7 +351,8 @@
 			foreign: draft.foreign ?? null,
 			bill: billBoxes(draft.bill),
 			fixed: into ? null : draft.fixed,
-			merge: into ? null : draft.merge
+			merge: into ? null : draft.merge,
+			income: !into && draft.income === true
 		};
 		if (!into) return;
 		onFixed(into);
@@ -373,6 +376,20 @@
 		editing.merge = null;
 		editing.fixed = null;
 		editing.receiptOf = f.store;
+	}
+
+	/**
+	 * «Apuntarlo en Ingresos»: the file read here is money that came in (a pension's transfer shared
+	 * from the bank's app). Taken to Ingresos as if shared there, where it is read as an income.
+	 */
+	async function toIncome() {
+		const file = editing?.receipt;
+		if (!file) return;
+		const name = file.type === 'application/pdf' ? 'ingreso.pdf' : 'ingreso.jpg';
+		if (!(await passSharedFile(file, name)))
+			return void (problem = 'Este navegador no deja pasarlo: súbelo desde Ingresos.');
+		close();
+		await goto('/gastos/ingresos?compartido=archivo');
 	}
 
 	/** Its month's name, «noviembre»: of a fixed one asked about (#501). */
@@ -731,7 +748,31 @@
 				<p class="mb-3 text-xs text-zinc-500">
 					Leído {e.readBy === 'ollama' ? 'en casa (Ollama)' : 'con OpenRouter'}. Corrige lo que haga
 					falta y guarda.
+					{#if !e.id && !e.income && e.receipt}
+						<button type="button" class="ml-1 underline hover:text-white" onclick={toIncome}
+							>Es un ingreso</button
+						>
+					{/if}
 				</p>
+			{/if}
+			{#if e.income && !e.id}
+				<div class="mb-3 rounded-md border border-emerald-500/40 bg-emerald-950/40 p-3 text-sm">
+					<p class="text-emerald-100">
+						Esto parece un <strong>ingreso</strong>, no un gasto{e.store
+							? `: ${e.store}`
+							: ''}{e.total ? `, ${e.total} €` : ''}.
+					</p>
+					<div class="mt-2 flex flex-wrap gap-2">
+						<button
+							class="{button} bg-emerald-700 font-semibold text-claro hover:bg-emerald-600"
+							onclick={toIncome}>Apuntarlo en Ingresos</button
+						>
+						<button
+							class="{button} hover:bg-zinc-800"
+							onclick={() => editing && (editing.income = false)}>No, es un gasto</button
+						>
+					</div>
+				</div>
 			{/if}
 			{#if e.foreign}
 				{@const f = e.foreign}
