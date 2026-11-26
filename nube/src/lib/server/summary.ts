@@ -28,6 +28,7 @@ import {
 	medicationOf,
 	moneyOf,
 	noSummaryChoice,
+	NOTICE_VIEWS,
 	PRICE_LOOK_BACK_DAYS,
 	shoppingOf,
 	SUMMARY_BLOCKS,
@@ -48,7 +49,11 @@ export async function summaryChoice(k: Kitchen, userId: string): Promise<Summary
 			.where(eq(familyMember.userId, userId))
 	);
 	const choice = { ...noSummaryChoice(), ...row?.choice };
-	return { ...choice, off: choice.off.filter(isSummaryBlock) };
+	return {
+		...choice,
+		off: choice.off.filter(isSummaryBlock),
+		notice: (choice.notice ?? []).filter((v) => (NOTICE_VIEWS as readonly string[]).includes(v))
+	};
 }
 
 export async function setSummaryChoice(k: Kitchen, userId: string, summary: SummaryChoice) {

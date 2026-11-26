@@ -44,7 +44,8 @@
 		enchufe: 'Enchufes',
 		espacio: 'Espacio',
 		energia: 'Energía',
-		ubicacion: 'Ubicación'
+		ubicacion: 'Ubicación',
+		resumen: 'Resumen'
 	};
 </script>
 

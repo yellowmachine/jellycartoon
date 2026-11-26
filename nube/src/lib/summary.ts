@@ -41,12 +41,21 @@ export type SummaryBlock = keyof typeof SUMMARY_BLOCKS;
 export const isSummaryBlock = (v: unknown): v is SummaryBlock =>
 	typeof v === 'string' && Object.hasOwn(SUMMARY_BLOCKS, v);
 
-/** A person's (Ajustes → Para mí): the card on the home page, and the blocks they took out. */
+/** The periods a notice may be sent for when over (#624, phase 4). */
+export const NOTICE_VIEWS = ['semana', 'mes'] as const;
+export type NoticeView = (typeof NOTICE_VIEWS)[number];
+export const isNoticeView = (v: unknown): v is NoticeView => NOTICE_VIEWS.includes(v as NoticeView);
+
+/**
+ * A person's (Ajustes → Para mí): the card on the home page, the blocks they took out, and whether
+ * the Buzón tells them when a week or a month is over (off by default; on, both unless they say).
+ */
 export interface SummaryChoice {
 	card: boolean;
 	off: SummaryBlock[];
+	notice: NoticeView[];
 }
-export const noSummaryChoice = (): SummaryChoice => ({ card: true, off: [] });
+export const noSummaryChoice = (): SummaryChoice => ({ card: true, off: [], notice: [] });
 
 export interface SummaryPeriod {
 	view: SummaryView;
@@ -541,7 +550,7 @@ export const summaryEmpty = (s: SummaryData) =>
 	!s.charges.length;
 
 /** «Resumen de octubre de 2026», «Resumen, semana del 16 al 22 de noviembre». */
-export function summaryTitle(p: SummaryPeriod) {
+export function summaryTitle(p: Pick<SummaryPeriod, 'view' | 'from' | 'to'>) {
 	if (p.view === 'mes') {
 		const [y, m] = p.from.split('-').map(Number) as [number, number];
 		const month = new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString('es-ES', {
@@ -559,4 +568,61 @@ export function summaryTitle(p: SummaryPeriod) {
 		});
 	const sameMonth = p.from.slice(0, 7) === p.to.slice(0, 7);
 	return `Resumen, semana del ${day(p.from, !sameMonth)} al ${day(p.to, true)}`;
+}
+
+/**
+ * The Buzón's notice when a week or a month is over (#624, phase 4): the main of each block in a
+ * few words, as Resumen tells it; null, nothing to tell. Not what is to come.
+ */
+export function summaryNotice(
+	s: SummaryData,
+	text: { euros: (c: number) => string; km: (m: number) => string }
+) {
+	const p = s.period;
+	const parts: string[] = [];
+	const withChange = (said: string, change: string | null) =>
+		change ? `${said} (${change})` : said;
+	if (s.money)
+		parts.push(
+			withChange(
+				`${text.euros(s.money.total)} gastados`,
+				changeText(s.money.total, s.money.before, LEAST_MONEY)
+			)
+		);
+	if (s.shopping?.dearer.length)
+		parts.push(
+			s.shopping.dearer.length === 1
+				? `${s.shopping.dearer[0]!.text}, más caro`
+				: `${s.shopping.dearer.length} cosas más caras`
+		);
+	if (s.energy)
+		parts.push(
+			withChange(
+				`${(s.energy.wh / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })} kWh en los enchufes`,
+				changeText(s.energy.wh, s.energy.before?.wh ?? null, LEAST_WH)
+			)
+		);
+	// The car in whole km; a walk, as Paseos writes it.
+	if (s.car?.metres)
+		parts.push(`${Math.round(s.car.metres / 1000).toLocaleString('es-ES')} km en coche`);
+	if (s.walks?.metres) parts.push(`${text.km(s.walks.metres)} andando`);
+	const missed = s.medication.reduce((n, m) => n + (m.due - m.taken), 0);
+	if (missed) parts.push(missed === 1 ? '1 toma sin marcar' : `${missed} tomas sin marcar`);
+	if (s.wishes)
+		parts.push(s.wishes.count === 1 ? '1 deseo comprado' : `${s.wishes.count} deseos comprados`);
+	if (!parts.length && !s.past?.count) return null;
+	const title =
+		p.view === 'mes'
+			? summaryTitle(p).replace(/^Resumen/, 'Ya está el resumen')
+			: summaryTitle(p).replace(/^Resumen, semana/, 'Ya está el resumen de la semana');
+	return {
+		title,
+		body: parts.length
+			? `${parts.join(' · ')}.`
+			: s.past!.count === 1
+				? '1 cita en la agenda.'
+				: `${s.past!.count} citas en la agenda.`,
+		url: `/preguntar/resumen?ver=${p.view}&de=${p.from}`,
+		tag: `resumen-${p.view}-${p.from}`
+	};
 }

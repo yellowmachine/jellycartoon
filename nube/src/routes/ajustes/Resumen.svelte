@@ -2,10 +2,12 @@
 	import { enhance } from '$app/forms';
 	import { section } from '#lib/styles.ts';
 	import { SUMMARY_BLOCKS, type SummaryBlock } from '#lib/summary.ts';
+
 	import type { PageData } from './$types';
 
 	/** What Preguntar → Resumen tells them, and its card on the home page. */
 	let { data, tab }: { data: PageData; tab: string } = $props();
+	const noticeOn = $derived(data.summaryChoice.notice.length > 0);
 
 	const blocks = Object.entries(SUMMARY_BLOCKS) as [SummaryBlock, { label: string }][];
 	const box = 'rounded border-zinc-700 bg-zinc-900 text-amber-500';
@@ -41,6 +43,48 @@
 				>
 			</span>
 		</label>
+		<label class="flex items-start gap-2">
+			<input
+				type="checkbox"
+				name="notice"
+				checked={noticeOn}
+				onchange={submit}
+				class="mt-0.5 {box}"
+			/>
+			<span>
+				Avisarme en el Buzón cuando acabe una semana o un mes
+				<span class="block text-xs text-zinc-500"
+					>Con lo principal y el enlace para verlo o guardarlo como informe. Solo en el Buzón, sin
+					aviso en el móvil.</span
+				>
+			</span>
+		</label>
+		{#if noticeOn}
+			<div class="ml-6 flex flex-wrap gap-x-4 gap-y-2">
+				<label class="flex items-center gap-2">
+					<input
+						type="checkbox"
+						name="noticeView"
+						value="semana"
+						checked={data.summaryChoice.notice.includes('semana')}
+						onchange={submit}
+						class={box}
+					/>
+					Cada semana, el lunes
+				</label>
+				<label class="flex items-center gap-2">
+					<input
+						type="checkbox"
+						name="noticeView"
+						value="mes"
+						checked={data.summaryChoice.notice.includes('mes')}
+						onchange={submit}
+						class={box}
+					/>
+					Cada mes, el día 1
+				</label>
+			</div>
+		{/if}
 		<fieldset class="flex flex-col gap-2">
 			<legend class="mb-2 text-zinc-400">Qué cuenta:</legend>
 			{#each blocks as [block, { label }] (block)}

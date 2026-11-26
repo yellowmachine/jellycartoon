@@ -29,7 +29,9 @@ export type InboxKind =
 	// Butane or pellet about to run out (#513).
 	| 'energia'
 	// Someone's location, or their trip as it goes (#550).
-	| 'ubicacion';
+	| 'ubicacion'
+	// A week's or a month's Resumen, over (#624, phase 4).
+	| 'resumen';
 
 /**
  * Something offered in the inbox, answered with yes or no (#331): to remember (phase 5; older ones

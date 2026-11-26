@@ -7,6 +7,7 @@ import * as schema from './db/schema.ts';
 import {
 	expense,
 	family,
+	inbox,
 	familyMember,
 	familyPerson,
 	kidGuardian,
@@ -69,6 +70,7 @@ mock.module('#lib/server/family-secret.ts', () => ({
 
 const { summaryOf, summaryOff } = await import('./summary.ts');
 const { getReport, keepSummary, refreshReport } = await import('./reports.ts');
+const { overToday, sendSummaryNotices } = await import('./summary-notice.ts');
 
 const kitchen = (userId: string): Kitchen => ({
 	familyId: 'A',
@@ -275,4 +277,27 @@ test('«Guardar como informe»: the blocks they see, without what is to come, ne
 	expect(await refreshReport(ana, 'ana', id)).toBe(false);
 	// Not another's.
 	expect(await getReport(kitchen('pepe'), 'pepe', id)).toBeNull();
+});
+
+test('«Ya está el resumen…»: on Monday and the 1st, once, only in the Buzón of who asked', async () => {
+	expect(overToday('2026-11-23')).toEqual(['semana']);
+	expect(overToday('2026-12-01')).toEqual(['mes']);
+	expect(overToday('2026-06-01')).toEqual(['semana', 'mes']);
+	expect(overToday('2026-11-25')).toEqual([]);
+
+	await db
+		.update(familyMember)
+		.set({ summary: { card: true, off: [], notice: ['semana', 'mes'] } })
+		.where(sql`${familyMember.userId} = 'ana'`);
+	await sendSummaryNotices('A', '2026-11-23', NOW);
+	// Again, after a restart: not twice; read, neither.
+	await db.update(inbox).set({ readAt: new Date() });
+	await sendSummaryNotices('A', '2026-11-23', NOW);
+	const rows = await db.select().from(inbox);
+	expect(rows.map((r) => [r.userId, r.kind, r.tag, r.url])).toEqual([
+		['ana', 'resumen', 'resumen-semana-2026-11-16', '/preguntar/resumen?ver=semana&de=2026-11-16']
+	]);
+	expect(rows[0]!.title).toBe('Ya está el resumen de la semana del 16 al 22 de noviembre');
+	// The family's fuel, Ana's and Pepe's; her trip of the 20th (the 23rd is the next week).
+	expect(rows[0]!.body).toBe('110,00 € gastados · 80 km en coche.');
 });
