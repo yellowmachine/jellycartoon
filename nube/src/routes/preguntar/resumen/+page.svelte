@@ -8,11 +8,13 @@
 		changeText,
 		LEAST_METRES,
 		LEAST_MONEY,
+		LEAST_WH,
 		SUMMARY_BLOCKS,
 		SUMMARY_VIEWS,
 		type SummaryBlock,
 		type SummaryView
 	} from '#lib/summary.ts';
+	import { energyText } from '#lib/plugs.ts';
 	import { durationText } from '#lib/trips.ts';
 	import { kcalText } from '#lib/walk-kcal.ts';
 	import { walkDistanceText } from '#lib/walks.ts';
@@ -27,6 +29,8 @@
 	const money = $derived(shows('dinero') ? data.money : null);
 	const walks = $derived(shows('paseos') ? data.walks : null);
 	const charges = $derived(shows('fijos') ? data.charges : []);
+	const shopping = $derived(shows('compras') ? data.shopping : null);
+	const energy = $derived(shows('energia') ? data.energy : null);
 	const past = $derived(shows('agenda') ? data.past : null);
 	const next = $derived(shows('agenda') ? data.next : null);
 	const p = $derived(data.period);
@@ -64,7 +68,12 @@
 			timeZone: 'UTC'
 		});
 	const largest = $derived(Math.max(1, ...(money?.categories ?? []).map((c) => c.total)));
-	const empty = $derived(!money && !walks && !past?.count && !next?.count && !charges.length);
+	const empty = $derived(
+		!money && !shopping && !energy && !walks && !past?.count && !next?.count && !charges.length
+	);
+	/** «3,2 kWh, 0,80 €»: without a price, only the kWh. */
+	const used = (wh: number, cents: number | null) =>
+		cents === null ? energyText(wh) : `${energyText(wh)}, ${euros(cents)}`;
 	const card = 'mb-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4';
 	const arrow = 'rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900';
 </script>
@@ -186,6 +195,43 @@
 		</section>
 	{/if}
 
+	{#if shopping}
+		{@const s = shopping}
+		<section class={card}>
+			<h3 class="mb-2 text-sm text-zinc-400">Compras, por las líneas de los tickets</h3>
+			{#if s.repeated.length}
+				<p class="mb-1 text-sm text-zinc-300">Lo que más se repite:</p>
+				<ul class="mb-3 divide-y divide-zinc-800 text-sm">
+					{#each s.repeated as r (r.text)}
+						<li class="flex gap-3 py-1">
+							<span class="min-w-0 flex-1 truncate">{r.text}</span>
+							<span class="shrink-0 text-zinc-400">{r.times} veces</span>
+							<span class="w-20 shrink-0 text-right tabular-nums">{euros(r.total)}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+			{#if s.dearer.length}
+				<p class="mb-1 text-sm text-zinc-300">Más caro que la última vez, en la misma tienda:</p>
+				<ul class="divide-y divide-zinc-800 text-sm">
+					{#each s.dearer as d (d.id + d.text)}
+						<li class="flex gap-3 py-1">
+							<a
+								href="/gastos?mes={monthOf(d.date)}&gasto={d.id}"
+								class="min-w-0 flex-1 truncate hover:underline"
+								>{d.text} <span class="text-zinc-500">· {d.store}</span></a
+							>
+							<span class="shrink-0 text-right tabular-nums"
+								>{euros(d.was)} → {euros(d.now)}
+								<span class="text-red-400">+{d.percent} %</span></span
+							>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+	{/if}
+
 	{#if charges.length}
 		<section class={card}>
 			<h3 class="mb-1 text-sm text-zinc-400">
@@ -208,6 +254,38 @@
 					{/each}
 				</ul>
 			{/if}
+		</section>
+	{/if}
+
+	{#if energy}
+		{@const en = energy}
+		<section class={card}>
+			<h3 class="mb-1 text-sm text-zinc-400">Energía, de los enchufes</h3>
+			<p class="text-2xl font-semibold tabular-nums">{energyText(en.wh)}</p>
+			<p class="text-sm text-zinc-400">
+				{[
+					en.cents === null ? 'Sin precio del kWh' : euros(en.cents),
+					en.before
+						? against(en.wh, en.before.wh, LEAST_WH, (wh) => used(wh, en.before!.cents))
+						: null
+				]
+					.filter(Boolean)
+					.join(' · ')}
+			</p>
+			{#if en.plugs.length > 1}
+				<p class="mt-2 text-sm text-zinc-300">
+					Los que más:
+					{#each en.plugs as x, i (x.id)}{i ? ', ' : ''}{x.name} ({used(x.wh, x.cents)}){/each}.
+				</p>
+			{/if}
+			{#if en.noData}
+				<p class="mt-2 text-sm text-zinc-500">
+					{en.noData === 1 ? '1 hora sin dato' : `${en.noData} horas sin dato`}, que no cuentan.
+				</p>
+			{/if}
+			<a href="/enchufes/consumo" class="mt-2 inline-block text-sm text-amber-400 hover:underline"
+				>Ver en Energía</a
+			>
 		</section>
 	{/if}
 
