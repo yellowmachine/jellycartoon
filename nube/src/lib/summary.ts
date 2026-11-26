@@ -2,10 +2,14 @@ import { addDays, mondayOf } from 'comun/agenda.ts';
 import {
 	addMonths,
 	EXPENSE_CATEGORIES,
+	lineKey,
 	monthOf,
 	type Expense,
 	type ExpenseCategory
 } from 'comun/expenses.ts';
+import { dosesOn, type Medication } from 'comun/medication.ts';
+import { priceAt, type KwhPrice } from '#lib/kwh-price.ts';
+import type { summaryOf } from '#lib/server/summary.ts';
 
 /**
  * Resumen: what there was in the last 7 days, always up to date, or in a week or a month already
@@ -24,7 +28,12 @@ export const isSummaryView = (v: unknown): v is SummaryView =>
 /** What it may tell, and the section each comes from (nav.ts). */
 export const SUMMARY_BLOCKS = {
 	dinero: { label: 'Dinero', section: '/gastos' },
+	compras: { label: 'Compras: lo que se repite y lo que sube', section: '/gastos' },
 	fijos: { label: 'Fijos que vienen', section: '/gastos' },
+	energia: { label: 'Energía de los enchufes', section: '/enchufes' },
+	coche: { label: 'Tu coche: km y gasolina', section: '/viajes' },
+	medicacion: { label: 'Medicación: la tuya y la de tus peques', section: '/agenda' },
+	deseos: { label: 'Deseos comprados', section: '/deseos' },
 	paseos: { label: 'Tus paseos', section: '/paseos' },
 	agenda: { label: 'Agenda', section: '/agenda' }
 } as const;
@@ -156,6 +165,318 @@ export function moneyOf(now: Expense[], before: Expense[]): Money | null {
 	};
 }
 
+/** Compras: the lines of what was bought, not of bills, bank payments or fixed ones. */
+const isPurchase = (e: Expense) =>
+	!e.fixed && !e.foreign && (e.source === 'ticket' || e.source === 'mano' || e.source === 'voz');
+
+/** Looked back for a product's price before the period: half a year. */
+export const PRICE_LOOK_BACK_DAYS = 183;
+/** Told at most, of each. */
+const MOST_PRODUCTS = 5;
+/** Dearer, at least by both: 5 cents and 5 %. */
+const DEARER_CENTS = 5;
+const DEARER_PERCENT = 5;
+
+export interface Shopping {
+	/** Bought in two purchases or more, the most often first: with the spelling written most. */
+	repeated: { text: string; times: number; total: number }[];
+	/** Dearer than the last time in that same shop: cents of one (or of a kg), with its percentage. */
+	dearer: {
+		text: string;
+		store: string;
+		was: number;
+		now: number;
+		percent: number;
+		/** Where it was bought dearer, to open it. */
+		id: number;
+		date: string;
+	}[];
+}
+
+/** Of one (or of a kg): without a quantity, the line is one. */
+const unitPrice = (amount: number, quantity: number | null) =>
+	Math.round(amount / (quantity && quantity > 0 ? quantity : 1));
+
+/**
+ * What the family bought in the period by the receipts' lines (`now`), and its prices beside the
+ * last ones before it (`earlier`, any order). Null, nothing to say.
+ */
+export function shoppingOf(now: Expense[], earlier: Expense[]): Shopping | null {
+	const lines = (list: Expense[]) =>
+		list
+			.filter(isPurchase)
+			.flatMap((e) =>
+				e.lines
+					.filter((l) => l.amount > 0 && lineKey(l.text))
+					.map((l) => ({ e, l, key: lineKey(l.text) }))
+			);
+	const mine = lines(now);
+
+	const products = new Map<
+		string,
+		{ ids: Set<number>; total: number; names: Map<string, number> }
+	>();
+	for (const { e, l, key } of mine) {
+		const p = products.get(key) ?? { ids: new Set(), total: 0, names: new Map() };
+		p.ids.add(e.id);
+		p.total += l.amount;
+		const name = l.text.replace(/\s+/g, ' ').trim();
+		p.names.set(name, (p.names.get(name) ?? 0) + 1);
+		products.set(key, p);
+	}
+	const spelling = (names: Map<string, number>) => [...names].sort((a, b) => b[1] - a[1])[0]![0];
+	const repeated = [...products.values()]
+		.filter((p) => p.ids.size > 1)
+		.sort((a, b) => b.ids.size - a.ids.size || b.total - a.total)
+		.slice(0, MOST_PRODUCTS)
+		.map((p) => ({ text: spelling(p.names), times: p.ids.size, total: p.total }));
+
+	// The same line in the same shop: another shop's price is not the same one going up.
+	const where = (e: Expense, key: string) => `${lineKey(e.store)}\u0000${key}`;
+	const newest = <T extends { e: Expense }>(list: T[]) => {
+		const last = new Map<string, T & { key: string }>();
+		for (const x of list as (T & { key: string })[]) {
+			const at = where(x.e, x.key);
+			const had = last.get(at);
+			if (!had || x.e.date > had.e.date || (x.e.date === had.e.date && x.e.id > had.e.id))
+				last.set(at, x);
+		}
+		return last;
+	};
+	const before = newest(lines(earlier));
+	const dearer = [...newest(mine)]
+		.flatMap(([at, x]) => {
+			const old = before.get(at);
+			if (!old) return [];
+			const was = unitPrice(old.l.amount, old.l.quantity);
+			const price = unitPrice(x.l.amount, x.l.quantity);
+			const percent = Math.round(((price - was) / was) * 100);
+			return price - was >= DEARER_CENTS && percent >= DEARER_PERCENT
+				? [
+						{
+							text: x.l.text.replace(/\s+/g, ' ').trim(),
+							store: x.e.store.trim(),
+							was,
+							now: price,
+							percent,
+							id: x.e.id,
+							date: x.e.date
+						}
+					]
+				: [];
+		})
+		.sort((a, b) => b.percent - a.percent)
+		.slice(0, MOST_PRODUCTS);
+	return repeated.length || dearer.length ? { repeated, dearer } : null;
+}
+
+/** Wh: with less before, no percentage. */
+export const LEAST_WH = 1000;
+const MOST_PLUGS = 3;
+
+export interface EnergyHour {
+	plugId: string;
+	hour: Date;
+	/** 0 when taken out («sin dato»). */
+	wh: number;
+	mark: string | null;
+}
+
+export interface Energy {
+	wh: number;
+	/** Null, no price of the kWh (neither written in Energía nor from a light bill). */
+	cents: number | null;
+	/** The one before, as far in; null, nothing in it. */
+	before: { wh: number; cents: number | null } | null;
+	/** The ones that used most. */
+	plugs: { id: string; name: string; wh: number; cents: number | null }[];
+	/** Hours taken out as wrong: they count as nothing. */
+	noData: number;
+}
+
+/**
+ * Energía (#396): what the family's plugs used from `start` to `end`, each hour at its price, beside
+ * `prevStart`–`prevEnd`. Null, nothing in either.
+ */
+export function energyOf(
+	rows: EnergyHour[],
+	plugs: { id: string; name: string }[],
+	price: KwhPrice | null,
+	at: { start: Date; end: Date; prevStart: Date; prevEnd: Date }
+): Energy | null {
+	const names = new Map(plugs.map((p) => [p.id, p.name]));
+	const now = { wh: 0, euros: 0 };
+	const before = { wh: 0, euros: 0 };
+	const byPlug = new Map<string, { wh: number; euros: number }>();
+	let noData = 0;
+	for (const r of rows) {
+		if (!names.has(r.plugId)) continue;
+		const euros = price ? (r.wh / 1000) * priceAt(price, r.hour) : 0;
+		if (r.hour >= at.prevStart && r.hour < at.prevEnd) {
+			before.wh += r.wh;
+			before.euros += euros;
+		}
+		if (r.hour < at.start || r.hour >= at.end) continue;
+		if (r.mark === 'sin_dato') noData++;
+		now.wh += r.wh;
+		now.euros += euros;
+		const one = byPlug.get(r.plugId) ?? { wh: 0, euros: 0 };
+		one.wh += r.wh;
+		one.euros += euros;
+		byPlug.set(r.plugId, one);
+	}
+	if (!now.wh && !before.wh && !noData) return null;
+	const cents = (euros: number) => (price ? Math.round(euros * 100) : null);
+	return {
+		wh: now.wh,
+		cents: cents(now.euros),
+		before: before.wh ? { wh: before.wh, cents: cents(before.euros) } : null,
+		plugs: [...byPlug]
+			.filter(([, p]) => p.wh > 0)
+			.sort((a, b) => b[1].wh - a[1].wh)
+			.slice(0, MOST_PLUGS)
+			.map(([id, p]) => ({ id, name: names.get(id)!, wh: p.wh, cents: cents(p.euros) })),
+		noData
+	};
+}
+
+export interface Car {
+	/** Metres driven by them in the road mode, and in how many trips. */
+	metres: number;
+	trips: number;
+	/** The one before, as far in; null, none. */
+	before: number | null;
+	/** What they put in Gasolina, in cents, and in how many. */
+	fuel: number;
+	fuels: number;
+}
+/** Less driven, no cost per 100 km: one fill-up says nothing of a short week. */
+export const LEAST_KM_FOR_COST = 100;
+
+/** Cents per 100 km; null, too few km or no fuel. */
+export const per100Km = (c: Pick<Car, 'metres' | 'fuel'>) =>
+	c.fuel > 0 && c.metres >= LEAST_KM_FOR_COST * 1000
+		? Math.round(c.fuel / (c.metres / 100_000))
+		: null;
+
+export interface MedicationPerson {
+	personId: string;
+	name: string;
+	taken: number;
+	due: number;
+	/** The ones not marked, the latest first; the rest, counted. */
+	missed: { day: string; time: string; name: string }[];
+	more: number;
+}
+const MISSED_TOLD = 5;
+
+/**
+ * Medicación (#308): of these people, the doses due from `from` to `to` (up to `now`: today's
+ * still to come do not count), and which were marked. `taken`, `<medication id> <day> <HH:MM>`.
+ */
+export function medicationOf(
+	meds: Medication[],
+	taken: Set<string>,
+	people: { id: string; name: string }[],
+	from: string,
+	to: string,
+	now: { day: string; time: string }
+): MedicationPerson[] {
+	const last = to < now.day ? to : now.day;
+	const of = new Map(
+		people.map((p) => [p.id, { taken: 0, due: 0, missed: [] as MedicationPerson['missed'] }])
+	);
+	for (let day = from; day <= last; day = addDays(day, 1))
+		for (const d of dosesOn(meds, day)) {
+			if (day === now.day && d.time > now.time) continue;
+			const person = of.get(d.medication.personId);
+			if (!person) continue;
+			person.due++;
+			if (taken.has(`${d.medication.id} ${day} ${d.time}`)) person.taken++;
+			else person.missed.push({ day, time: d.time, name: d.medication.name });
+		}
+	return people.flatMap((p) => {
+		const x = of.get(p.id)!;
+		if (!x.due) return [];
+		const missed = x.missed.reverse();
+		return [
+			{
+				personId: p.id,
+				name: p.name,
+				taken: x.taken,
+				due: x.due,
+				missed: missed.slice(0, MISSED_TOLD),
+				more: Math.max(0, missed.length - MISSED_TOLD)
+			}
+		];
+	});
+}
+
+export interface BoughtWish {
+	id: number;
+	title: string;
+	/** Whose wish. */
+	person: string;
+	shop: string;
+	on: string;
+	priceCents: number | null;
+	shippingCents: number | null;
+	extraCents: number | null;
+	currency: string | null;
+	expenseId: number | null;
+}
+export interface Wishes {
+	items: (Pick<BoughtWish, 'id' | 'title' | 'person' | 'shop' | 'on'> & { cents: number | null })[];
+	count: number;
+	/** What they cost: each expense in Dinero once (several bought together are one), or its price. */
+	total: number;
+	/** Without an expense nor a price in euros: not in `total`. */
+	unknown: number;
+}
+const WISHES_TOLD = 8;
+
+/**
+ * Deseos (#586): those bought in the period, as the one looking may see them (never the gifts for
+ * them: listWishes leaves them out). `expenses`, the totals of the expenses they are in.
+ */
+export function wishesOf(bought: BoughtWish[], expenses: Map<number, number>): Wishes | null {
+	if (!bought.length) return null;
+	const own = (w: BoughtWish) =>
+		w.priceCents !== null && (w.currency === null || w.currency === 'EUR')
+			? w.priceCents + (w.shippingCents ?? 0) + (w.extraCents ?? 0)
+			: null;
+	const counted = new Set<number>();
+	let total = 0;
+	let unknown = 0;
+	for (const w of bought) {
+		const inDinero = w.expenseId !== null ? expenses.get(w.expenseId) : undefined;
+		if (inDinero !== undefined) {
+			if (!counted.has(w.expenseId!)) total += inDinero;
+			counted.add(w.expenseId!);
+			continue;
+		}
+		const cents = own(w);
+		if (cents === null) unknown++;
+		else total += cents;
+	}
+	return {
+		items: [...bought]
+			.sort((a, b) => b.on.localeCompare(a.on) || b.id - a.id)
+			.slice(0, WISHES_TOLD)
+			.map((w) => ({
+				id: w.id,
+				title: w.title,
+				person: w.person,
+				shop: w.shop,
+				on: w.on,
+				cents: own(w)
+			})),
+		count: bought.length,
+		total,
+		unknown
+	};
+}
+
 /**
  * «−18 %», «+3 %», «igual»; null, when a percentage would say nothing: no one before, or so small
  * (`least`) that any change is a large one.
@@ -201,4 +522,41 @@ export function cardLines(s: {
 			text: s.next.count === 1 ? '1 cita por venir' : `${s.next.count} citas por venir`
 		});
 	return lines;
+}
+
+/** What Resumen shows: live, or kept in a report. */
+export type SummaryData = Awaited<ReturnType<typeof summaryOf>>;
+
+/** Nothing in any block. */
+export const summaryEmpty = (s: SummaryData) =>
+	!s.money &&
+	!s.shopping &&
+	!s.energy &&
+	!s.car &&
+	!s.medication.length &&
+	!s.wishes &&
+	!s.walks &&
+	!s.past?.count &&
+	!s.next?.count &&
+	!s.charges.length;
+
+/** «Resumen de octubre de 2026», «Resumen, semana del 16 al 22 de noviembre». */
+export function summaryTitle(p: SummaryPeriod) {
+	if (p.view === 'mes') {
+		const [y, m] = p.from.split('-').map(Number) as [number, number];
+		const month = new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString('es-ES', {
+			month: 'long',
+			year: 'numeric',
+			timeZone: 'UTC'
+		});
+		return `Resumen de ${month}`;
+	}
+	const day = (d: string, month: boolean) =>
+		new Date(`${d}T12:00:00Z`).toLocaleDateString('es-ES', {
+			day: 'numeric',
+			...(month ? { month: 'long' } : {}),
+			timeZone: 'UTC'
+		});
+	const sameMonth = p.from.slice(0, 7) === p.to.slice(0, 7);
+	return `Resumen, semana del ${day(p.from, !sameMonth)} al ${day(p.to, true)}`;
 }

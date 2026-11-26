@@ -9,6 +9,7 @@
 	import StatsBlock from './StatsBlock.svelte';
 	import EnergyBlock from './EnergyBlock.svelte';
 	import WeatherBlock from './WeatherBlock.svelte';
+	import SummaryBlocks from '#lib/components/SummaryBlocks.svelte';
 
 	/** A report's pieces (#505): the AI's words, then each block drawn by Seilide. */
 	let { report }: { report: Report } = $props();
@@ -51,6 +52,12 @@
 				return [{ href: 'https://open-meteo.com/', text: 'Open-Meteo', out: true }];
 			case 'energia':
 				return [{ href: '/enchufes/consumo', text: 'Consumo' }];
+			case 'resumen': {
+				const v = p.block.summary.period;
+				return [
+					{ href: `/preguntar/resumen?ver=${v.view}&de=${v.from}`, text: 'El resumen de ahora' }
+				];
+			}
 			default:
 				return [];
 		}
@@ -83,6 +90,8 @@
 				<WeatherBlock block={p.block} />
 			{:else if p.block?.kind === 'energia'}
 				<EnergyBlock block={p.block} />
+			{:else if p.block?.kind === 'resumen'}
+				<SummaryBlocks s={p.block.summary} />
 			{/if}
 			{#if sources(p).length}
 				<p class="text-right text-xs text-zinc-500">

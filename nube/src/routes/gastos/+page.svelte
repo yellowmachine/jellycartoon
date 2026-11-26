@@ -506,6 +506,7 @@
 	const shownExpenses = $derived(
 		filtered ? filterExpenses(data.expenses, filter, data.own) : data.expenses
 	);
+	const shownTotal = $derived(shownExpenses.reduce((sum, e) => sum + e.total, 0));
 	const listDays = $derived([...new Set(data.expenses.map((e) => e.date))]);
 	const listStores = $derived(
 		byStore(data.expenses)
@@ -1212,11 +1213,7 @@
 		</div>
 		{#if filtered}
 			<p class="mb-2 flex flex-wrap items-center gap-x-3 text-sm text-zinc-400">
-				<span role="status"
-					>{shownExpenses.length} de {data.expenses.length} gastos · {euros(
-						shownExpenses.reduce((sum, e) => sum + e.total, 0)
-					)}</span
-				>
+				<span>{shownExpenses.length} de {data.expenses.length} gastos</span>
 				<button class="text-amber-400 hover:underline" onclick={() => (filter = noFilter())}
 					>Quitar el filtro</button
 				>
@@ -1224,7 +1221,7 @@
 		{/if}
 	{/if}
 
-	<ul class="mb-10 divide-y divide-zinc-800">
+	<ul class={['divide-y divide-zinc-800', !shownExpenses.length && 'mb-10']}>
 		{#each shownExpenses as e (e.id)}
 			<li id="gasto-{e.id}">
 				<button
@@ -1674,6 +1671,20 @@
 			<li class="py-4 text-zinc-400">Nada apuntado este mes.</li>
 		{/each}
 	</ul>
+	{#if shownExpenses.length}
+		<!-- What the ones in the list add up to, filtered or not, in the amounts' column. -->
+		<p
+			class="mb-10 flex items-baseline gap-3 border-t border-zinc-600 py-2"
+			role="status"
+			aria-live="polite"
+		>
+			<span class="min-w-0 flex-1 text-sm text-zinc-400"
+				>{filtered ? `Total de los ${shownExpenses.length} filtrados` : 'Total'}</span
+			>
+			<span class="shrink-0 text-right text-lg font-semibold tabular-nums">{euros(shownTotal)}</span
+			>
+		</p>
+	{/if}
 
 	<section class="mb-10">
 		<h2 class="mb-1 font-semibold">Fijos</h2>

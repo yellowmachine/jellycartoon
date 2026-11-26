@@ -31,6 +31,8 @@ en la tuya saldrán vuestras cosas.
 - **[Llamar a la familia](/guia/llamadas/):** llamadas por internet entre los mayores, también con
   los abuelos.
 - **[¿Dónde está el coche?](/guia/coche/):** dónde se aparcó cada coche y cómo llegar andando.
+- **[Preguntar](/guia/preguntar/):** preguntarle a la IA por lo de la familia, el resumen de cada
+  semana o mes, y guardar informes.
 
 ## Instalarla en el móvil
 

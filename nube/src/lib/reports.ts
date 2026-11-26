@@ -1,4 +1,5 @@
 import type { BarsBlock } from '#lib/blocks.ts';
+import type { SummaryData } from '#lib/summary.ts';
 
 /**
  * Informes (#505, phase 3): documents kept in Preguntar → Informes, asked for in the chat. The AI
@@ -111,7 +112,17 @@ export interface EnergyBlock {
 	fuels: { kind: 'butano' | 'pellet'; units: number }[];
 }
 
+/**
+ * Resumen kept as a report (#624, «Guardar como informe»): its blocks as they were, never taken
+ * again («Actualizar» is not offered). Not one the AI may choose: not in REPORT_BLOCKS.
+ */
+export interface SummaryReportBlock {
+	kind: 'resumen';
+	summary: SummaryData;
+}
+
 export type ReportBlock =
+	| SummaryReportBlock
 	| StatsBlock
 	| MapBlock
 	| PhotosBlock
@@ -155,6 +166,10 @@ export const MAX_PIECES = 12;
 export const MAX_PIECE_TEXT = 1_500;
 /** Photos in a report, at most. */
 export const REPORT_PHOTOS = 60;
+
+/** A Resumen kept: as it was, without «Actualizar». */
+export const isSummaryReport = (r: Pick<Report, 'pieces'>) =>
+	r.pieces.some((p) => p.block?.kind === 'resumen');
 
 /** The expenses kept: all but those taken away. */
 export const keptExpenses = <T extends { id: number }>(items: T[], excluded: number[]) =>

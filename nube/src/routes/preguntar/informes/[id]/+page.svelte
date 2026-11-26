@@ -3,6 +3,7 @@
 	import PreguntarTabs from '#lib/components/PreguntarTabs.svelte';
 	import ReportView from '#lib/components/report/ReportView.svelte';
 	import { daysText } from '#lib/report-days.ts';
+	import { isSummaryReport } from '#lib/reports.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -11,6 +12,8 @@
 	 */
 	let { data, form }: PageProps = $props();
 	const r = $derived(data.report);
+	/** A Resumen kept (#624): as it was, never taken again. */
+	const frozen = $derived(isSummaryReport(r));
 
 	let refreshing = $state(false);
 	let renaming = $state(false);
@@ -76,7 +79,9 @@
 		{/if}
 		<p class="text-sm text-zinc-400 first-letter:uppercase">{daysText(r.from, r.to)}</p>
 		<p class="mt-1 text-xs text-zinc-500">
-			{#if refreshed}
+			{#if frozen}
+				Resumen guardado el {when.format(new Date(r.createdAt))}, tal como estaba: no cambia.
+			{:else if refreshed}
 				Hecho el {when.format(new Date(r.createdAt))}; cifras al día del {when.format(
 					new Date(r.refreshedAt)
 				)}. El texto es el de cuando se hizo.
@@ -85,23 +90,23 @@
 			{/if}
 		</p>
 		<div class="mt-3 flex flex-wrap items-center gap-2">
-			<form
-				method="post"
-				action="?/actualizar"
-				use:enhance={() => {
-					refreshing = true;
-					return async ({ update }) => {
-						await update();
-						refreshing = false;
-					};
-				}}
-			>
-				<button
-					disabled={refreshing}
-					class="rounded-md border border-zinc-700 px-3 py-1 text-sm text-zinc-200 hover:bg-zinc-800 disabled:opacity-50"
-					>{refreshing ? 'Actualizando…' : 'Actualizar'}</button
+			{#if !frozen}<form
+					method="post"
+					action="?/actualizar"
+					use:enhance={() => {
+						refreshing = true;
+						return async ({ update }) => {
+							await update();
+							refreshing = false;
+						};
+					}}
 				>
-			</form>
+					<button
+						disabled={refreshing}
+						class="rounded-md border border-zinc-700 px-3 py-1 text-sm text-zinc-200 hover:bg-zinc-800 disabled:opacity-50"
+						>{refreshing ? 'Actualizando…' : 'Actualizar'}</button
+					>
+				</form>{/if}
 			{#if confirmDelete}
 				<form method="post" action="?/borrar" use:enhance class="flex items-center gap-2">
 					<span class="text-sm text-zinc-400">¿Borrar este informe?</span>
