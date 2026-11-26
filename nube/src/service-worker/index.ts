@@ -4,7 +4,7 @@ import { immutable } from '$app/manifest';
 import { self } from '$app/service-worker';
 import { EJS_CACHE, EJS_DATA, GAMES_CACHE, PLAYER_PAGE } from '#lib/offline-games.ts';
 import { KEPT_PAGES, OFFLINE_PAGE, PAGES_CACHE_PREFIX } from '#lib/offline-pages.ts';
-import { SHARED_CACHE, SHARED_KEY } from '#lib/shared-file.ts';
+import { passSharedFile } from '#lib/shared-file.ts';
 
 /**
  * The cloud's service worker (#253), as jellycartoon's: for the family's notices (Web Push,
@@ -25,16 +25,7 @@ self.addEventListener('fetch', (event) => {
 			const form = await event.request.formData();
 			const file = form.get('archivo');
 			if (file instanceof File && file.size) {
-				const cache = await caches.open(SHARED_CACHE);
-				await cache.put(
-					SHARED_KEY,
-					new Response(file, {
-						headers: {
-							'content-type': file.type,
-							'x-name': encodeURIComponent(file.name)
-						}
-					})
-				);
+				await passSharedFile(file, file.name);
 				return Response.redirect('/gastos?compartido=archivo', 303);
 			}
 			const params = new URLSearchParams();

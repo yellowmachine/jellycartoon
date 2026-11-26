@@ -42,6 +42,7 @@ export const BILL_SCHEMA = {
 	type: 'object',
 	properties: {
 		provider: { type: 'string' },
+		received: { type: 'boolean' },
 		kind: { type: 'string', enum: [...BILL_KINDS, NOT_SUPPLY] },
 		category: { type: 'string', enum: [...EXPENSE_CATEGORIES] },
 		date: { type: 'string' },
@@ -75,6 +76,7 @@ export const BILL_SCHEMA = {
 	},
 	required: [
 		'provider',
+		'received',
 		'kind',
 		'category',
 		'date',
@@ -103,7 +105,9 @@ export const BILL_SCHEMA = {
 export const BILL_PROMPT =
 	'Es una factura de casa, casi siempre española: casi siempre de un suministro (luz, agua o gas), ' +
 	'pero puede ser de otra cosa (un seguro, internet, el móvil…) o el justificante del banco de un ' +
-	'cargo. Extrae: la compañía a la que se paga (su nombre comercial, sin «S.L.» ni «Seguros»; en ' +
+	'cargo. Antes de nada, si el dinero se paga o se cobra: received es true si es dinero que la ' +
+	'familia recibe (un abono, una transferencia recibida, una pensión, una nómina, una devolución), ' +
+	'y false si lo paga (un cargo, un recibo, una factura). Extrae: la compañía a la que se paga (su nombre comercial, sin «S.L.» ni «Seguros»; en ' +
 	'un justificante del banco, la del concepto, no el banco); qué es (Luz, Agua o Gas; si no es ' +
 	`ninguno, ${NOT_SUPPLY}); su categoría de estas: ${EXPENSE_CATEGORIES.join(', ')} (un seguro, ` +
 	'Seguros; un suministro, Facturas); la fecha del ' +
@@ -174,8 +178,10 @@ const addDays = (day: string, days: number) =>
 export function billDraftFromAnswer(
 	answer: unknown,
 	today: string
-): ExpenseInput & { bill: BillInput | null } {
+): ExpenseInput & { bill: BillInput | null; income: boolean } {
 	const a = (answer && typeof answer === 'object' ? answer : {}) as Record<string, unknown>;
+	// Money that comes in (a pension's transfer, shared from the bank's app): for Ingresos.
+	const income = a.received === true;
 	const lines = (Array.isArray(a.parts) ? a.parts : [])
 		.slice(0, MAX_LINES)
 		.flatMap((p: unknown) => {
@@ -191,7 +197,8 @@ export function billDraftFromAnswer(
 		date,
 		store: typeof a.provider === 'string' ? a.provider.trim().slice(0, 120) : '',
 		total: toCents(a.total) || linesSum(lines),
-		lines
+		lines,
+		income
 	};
 	if (a.kind === NOT_SUPPLY)
 		return { ...expense, category: isCategory(a.category) ? a.category : 'Otros', bill: null };

@@ -16,3 +16,19 @@ export async function takeSharedFile(): Promise<File | null> {
 	const name = decodeURIComponent(res.headers.get('x-name') ?? 'compartido');
 	return new File([await res.blob()], name, { type: res.headers.get('content-type') ?? '' });
 }
+
+/**
+ * Kept for a page to take: shared to the app (by the service worker), or read in Gastos and found
+ * to be an income (a pension's transfer from the bank's app), for Ingresos.
+ */
+export async function passSharedFile(file: Blob, name: string) {
+	if (!('caches' in globalThis)) return false;
+	const cache = await caches.open(SHARED_CACHE);
+	await cache.put(
+		SHARED_KEY,
+		new Response(file, {
+			headers: { 'content-type': file.type, 'x-name': encodeURIComponent(name) }
+		})
+	);
+	return true;
+}

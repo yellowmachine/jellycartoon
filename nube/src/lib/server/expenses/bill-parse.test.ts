@@ -84,6 +84,7 @@ test("the model's answer: the parts as lines, the supply apart", () => {
 		store: 'Pepeenergy',
 		category: 'Facturas',
 		total: 8309,
+		income: false,
 		lines: [
 			{ text: 'Potencia', quantity: null, amount: 818, tag: 'Otros' },
 			{ text: 'Energía', quantity: null, amount: 5544, tag: 'Otros' },
@@ -162,6 +163,7 @@ test('not of a supply (an insurance, the bank’s receipt of a charge): an expen
 		category: 'Seguros',
 		total: 7334,
 		lines: [],
+		income: false,
 		bill: null
 	});
 	expect(billDraftFromAnswer({ kind: 'Otro', category: '?' }, TODAY).category).toBe('Otros');
@@ -183,4 +185,19 @@ test('the schema as Anthropic takes it: no enum beside a list of types', () => {
 	};
 	walk(BILL_SCHEMA, 'bill');
 	expect(bad).toEqual([]);
+});
+
+test('money that comes in (a pension’s transfer), an income; a charge or a bill, not', () => {
+	const pension = billDraftFromAnswer(
+		{ provider: 'INSS', received: true, kind: 'Otro', date: '2026-11-25', total: 1234.56 },
+		TODAY
+	);
+	expect(pension.income).toBe(true);
+	expect(pension.total).toBe(123456);
+	expect(billDraftFromAnswer({ received: false, kind: 'Otro' }, TODAY).income).toBe(false);
+	expect(billDraftFromAnswer({ kind: 'Luz' }, TODAY).income).toBe(false);
+});
+
+test('every property of the schema, required (OpenRouter strict)', () => {
+	expect([...BILL_SCHEMA.required].sort()).toEqual(Object.keys(BILL_SCHEMA.properties).sort());
 });
