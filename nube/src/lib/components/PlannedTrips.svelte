@@ -4,7 +4,8 @@
 	import { dayName, localDay, type AgendaPerson } from 'comun/agenda.ts';
 	import { distanceText, type LngLat } from 'comun/road.ts';
 	import type { SavedPlace, SavedRoute } from 'comun/saved-places.ts';
-	import { FORECAST_DAYS, skyIcon, type HourWeather } from 'comun/weather.ts';
+	import { FORECAST_DAYS, type HourWeather } from 'comun/weather.ts';
+	import WeatherIcon from '#lib/components/WeatherIcon.svelte';
 	import { durationText } from '#lib/trips.ts';
 	import {
 		arrivalOf,
@@ -60,7 +61,7 @@
 	}
 
 	const weatherText = (w: HourWeather) =>
-		`${skyIcon(w.code)} ${w.temperature} °C${w.rain >= 30 ? `, lluvia ${w.rain} %` : ''}${w.wind >= 40 ? `, viento ${w.wind} km/h` : ''}`;
+		`${w.temperature} °C${w.rain >= 30 ? `, lluvia ${w.rain} %` : ''}${w.wind >= 40 ? `, viento ${w.wind} km/h` : ''}`;
 
 	// The trip being made or changed (its id; 0, a new one), and the one getting a new leg.
 	let editing = $state<number | null>(null);
@@ -289,9 +290,17 @@
 										{@const w = all[leg.id]}
 										{#if w?.depart || w?.arrive}
 											<p class="text-sm">
-												{#if w.depart}Salida {weatherText(w.depart)}{/if}{#if w.depart && w.arrive}
+												{#if w.depart}Salida <WeatherIcon
+														code={w.depart.code}
+														class="h-4 w-4 align-[-0.2em]"
+													/>
+													{weatherText(w.depart)}{/if}{#if w.depart && w.arrive}
 													·
-												{/if}{#if w.arrive}Llegada {weatherText(w.arrive)}{/if}
+												{/if}{#if w.arrive}Llegada <WeatherIcon
+														code={w.arrive.code}
+														class="h-4 w-4 align-[-0.2em]"
+													/>
+													{weatherText(w.arrive)}{/if}
 											</p>
 										{/if}
 										{#if w?.way}

@@ -147,7 +147,25 @@ export async function forecast(lat: number, lon: number) {
 	return lines.join('\n');
 }
 
-/** The weather at a glance (Seilide's home page): now, and today's lowest, highest and rain. */
+/** One day of the next ones, at a glance. */
+export interface DayGlance {
+	/** Its day, YYYY-MM-DD, where they live. */
+	day: string;
+	/** WMO's code, for its icon. */
+	code: number;
+	min: number;
+	max: number;
+	/** Its chance of rain, %. */
+	rain: number;
+}
+
+/** How many days the home page shows, counting today. */
+export const GLANCE_DAYS = 7;
+
+/**
+ * The weather at a glance (Seilide's home page): now, today's lowest, highest and rain, and the
+ * next days, today first.
+ */
 export interface WeatherGlance {
 	temperature: number;
 	sky: string;
@@ -157,6 +175,7 @@ export interface WeatherGlance {
 	max: number;
 	/** Today's chance of rain, %. */
 	rain: number;
+	days: DayGlance[];
 }
 
 export async function weatherGlance(lat: number, lon: number): Promise<WeatherGlance> {
@@ -166,18 +185,26 @@ export async function weatherGlance(lat: number, lon: number): Promise<WeatherGl
 	url.searchParams.set('current', 'temperature_2m,weather_code');
 	url.searchParams.set(
 		'daily',
-		'temperature_2m_max,temperature_2m_min,precipitation_probability_max'
+		'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max'
 	);
 	url.searchParams.set('timezone', TIME_ZONE);
-	url.searchParams.set('forecast_days', '1');
+	url.searchParams.set('forecast_days', String(GLANCE_DAYS));
 	const data = await getJson(url);
+	const d = data.daily;
 	return {
 		temperature: round(data.current.temperature_2m),
 		sky: sky(data.current.weather_code),
 		code: data.current.weather_code,
 		min: round(data.daily.temperature_2m_min[0]),
 		max: round(data.daily.temperature_2m_max[0]),
-		rain: data.daily.precipitation_probability_max[0] ?? 0
+		rain: data.daily.precipitation_probability_max[0] ?? 0,
+		days: (d.time as string[]).map((day, i) => ({
+			day,
+			code: d.weather_code[i],
+			min: round(d.temperature_2m_min[i]),
+			max: round(d.temperature_2m_max[i]),
+			rain: d.precipitation_probability_max[i] ?? 0
+		}))
 	};
 }
 

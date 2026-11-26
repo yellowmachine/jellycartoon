@@ -9,10 +9,6 @@ import { comingCharges } from '#lib/server/expenses/charges.ts';
 import { homeOf, homeWeather, unreadInbox } from '#lib/server/home.ts';
 import { homeSummary } from '#lib/server/summary.ts';
 import { nextTrip } from '#lib/server/trips/planned.ts';
-import { myCar } from '#lib/server/trips/cars.ts';
-import { carWithStreet } from '#lib/server/trips/car-street.ts';
-import { orsFor } from '#lib/server/road/ors.ts';
-import { orsKey } from '#lib/server/family-settings.ts';
 import { askForAccess } from '#lib/server/waitlist.ts';
 import { EMAIL } from '#lib/invitation.ts';
 import { news } from '#lib/server/news.ts';
@@ -66,15 +62,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			trip: nextTrip(k).catch((error) => {
 				console.warn('[portada] Sin el próximo viaje', String(error));
 				return null;
-			}),
-			car: myCar(k)
-				.then((c) =>
-					carWithStreet(c, async (at) => ((await orsKey(k)) ? orsFor(k).streetNear(at) : null))
-				)
-				.catch((error) => {
-					console.warn('[portada] Sin el coche', String(error));
-					return null;
-				})
+			})
 		};
 	} catch (error) {
 		if (error instanceof NoFamily) return { home: null };
