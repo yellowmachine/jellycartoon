@@ -7,6 +7,7 @@ import {
 	type Expense,
 	type ExpenseCategory
 } from 'comun/expenses.ts';
+import { dosesOn, type Medication } from 'comun/medication.ts';
 import { priceAt, type KwhPrice } from '#lib/kwh-price.ts';
 
 /**
@@ -29,6 +30,9 @@ export const SUMMARY_BLOCKS = {
 	compras: { label: 'Compras: lo que se repite y lo que sube', section: '/gastos' },
 	fijos: { label: 'Fijos que vienen', section: '/gastos' },
 	energia: { label: 'Energía de los enchufes', section: '/enchufes' },
+	coche: { label: 'Tu coche: km y gasolina', section: '/viajes' },
+	medicacion: { label: 'Medicación: la tuya y la de tus peques', section: '/agenda' },
+	deseos: { label: 'Deseos comprados', section: '/deseos' },
 	paseos: { label: 'Tus paseos', section: '/paseos' },
 	agenda: { label: 'Agenda', section: '/agenda' }
 } as const;
@@ -332,6 +336,143 @@ export function energyOf(
 			.slice(0, MOST_PLUGS)
 			.map(([id, p]) => ({ id, name: names.get(id)!, wh: p.wh, cents: cents(p.euros) })),
 		noData
+	};
+}
+
+export interface Car {
+	/** Metres driven by them in the road mode, and in how many trips. */
+	metres: number;
+	trips: number;
+	/** The one before, as far in; null, none. */
+	before: number | null;
+	/** What they put in Gasolina, in cents, and in how many. */
+	fuel: number;
+	fuels: number;
+}
+/** Less driven, no cost per 100 km: one fill-up says nothing of a short week. */
+export const LEAST_KM_FOR_COST = 100;
+
+/** Cents per 100 km; null, too few km or no fuel. */
+export const per100Km = (c: Pick<Car, 'metres' | 'fuel'>) =>
+	c.fuel > 0 && c.metres >= LEAST_KM_FOR_COST * 1000
+		? Math.round(c.fuel / (c.metres / 100_000))
+		: null;
+
+export interface MedicationPerson {
+	personId: string;
+	name: string;
+	taken: number;
+	due: number;
+	/** The ones not marked, the latest first; the rest, counted. */
+	missed: { day: string; time: string; name: string }[];
+	more: number;
+}
+const MISSED_TOLD = 5;
+
+/**
+ * Medicación (#308): of these people, the doses due from `from` to `to` (up to `now`: today's
+ * still to come do not count), and which were marked. `taken`, `<medication id> <day> <HH:MM>`.
+ */
+export function medicationOf(
+	meds: Medication[],
+	taken: Set<string>,
+	people: { id: string; name: string }[],
+	from: string,
+	to: string,
+	now: { day: string; time: string }
+): MedicationPerson[] {
+	const last = to < now.day ? to : now.day;
+	const of = new Map(
+		people.map((p) => [p.id, { taken: 0, due: 0, missed: [] as MedicationPerson['missed'] }])
+	);
+	for (let day = from; day <= last; day = addDays(day, 1))
+		for (const d of dosesOn(meds, day)) {
+			if (day === now.day && d.time > now.time) continue;
+			const person = of.get(d.medication.personId);
+			if (!person) continue;
+			person.due++;
+			if (taken.has(`${d.medication.id} ${day} ${d.time}`)) person.taken++;
+			else person.missed.push({ day, time: d.time, name: d.medication.name });
+		}
+	return people.flatMap((p) => {
+		const x = of.get(p.id)!;
+		if (!x.due) return [];
+		const missed = x.missed.reverse();
+		return [
+			{
+				personId: p.id,
+				name: p.name,
+				taken: x.taken,
+				due: x.due,
+				missed: missed.slice(0, MISSED_TOLD),
+				more: Math.max(0, missed.length - MISSED_TOLD)
+			}
+		];
+	});
+}
+
+export interface BoughtWish {
+	id: number;
+	title: string;
+	/** Whose wish. */
+	person: string;
+	shop: string;
+	on: string;
+	priceCents: number | null;
+	shippingCents: number | null;
+	extraCents: number | null;
+	currency: string | null;
+	expenseId: number | null;
+}
+export interface Wishes {
+	items: (Pick<BoughtWish, 'id' | 'title' | 'person' | 'shop' | 'on'> & { cents: number | null })[];
+	count: number;
+	/** What they cost: each expense in Dinero once (several bought together are one), or its price. */
+	total: number;
+	/** Without an expense nor a price in euros: not in `total`. */
+	unknown: number;
+}
+const WISHES_TOLD = 8;
+
+/**
+ * Deseos (#586): those bought in the period, as the one looking may see them (never the gifts for
+ * them: listWishes leaves them out). `expenses`, the totals of the expenses they are in.
+ */
+export function wishesOf(bought: BoughtWish[], expenses: Map<number, number>): Wishes | null {
+	if (!bought.length) return null;
+	const own = (w: BoughtWish) =>
+		w.priceCents !== null && (w.currency === null || w.currency === 'EUR')
+			? w.priceCents + (w.shippingCents ?? 0) + (w.extraCents ?? 0)
+			: null;
+	const counted = new Set<number>();
+	let total = 0;
+	let unknown = 0;
+	for (const w of bought) {
+		const inDinero = w.expenseId !== null ? expenses.get(w.expenseId) : undefined;
+		if (inDinero !== undefined) {
+			if (!counted.has(w.expenseId!)) total += inDinero;
+			counted.add(w.expenseId!);
+			continue;
+		}
+		const cents = own(w);
+		if (cents === null) unknown++;
+		else total += cents;
+	}
+	return {
+		items: [...bought]
+			.sort((a, b) => b.on.localeCompare(a.on) || b.id - a.id)
+			.slice(0, WISHES_TOLD)
+			.map((w) => ({
+				id: w.id,
+				title: w.title,
+				person: w.person,
+				shop: w.shop,
+				on: w.on,
+				cents: own(w)
+			})),
+		count: bought.length,
+		total,
+		unknown
 	};
 }
 

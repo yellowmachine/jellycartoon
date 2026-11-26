@@ -1,13 +1,18 @@
 import { expect, test } from 'bun:test';
 import type { Expense, ExpenseCategory } from 'comun/expenses.ts';
+import type { Medication } from 'comun/medication.ts';
 import type { KwhPrice } from '#lib/kwh-price.ts';
 import {
 	cardLines,
 	changeText,
 	energyOf,
+	medicationOf,
 	moneyOf,
+	per100Km,
 	shoppingOf,
 	summaryPeriod,
+	wishesOf,
+	type BoughtWish,
 	type EnergyHour
 } from './summary.ts';
 
@@ -220,4 +225,88 @@ test('energía: each hour at its price, the one before as far in, the hours with
 		cents: null,
 		before: { cents: null }
 	});
+});
+
+test('coche: cost per 100 km only with enough km and fuel', () => {
+	expect(per100Km({ metres: 400_000, fuel: 4000 })).toBe(1000);
+	expect(per100Km({ metres: 40_000, fuel: 4000 })).toBeNull();
+	expect(per100Km({ metres: 400_000, fuel: 0 })).toBeNull();
+});
+
+test('medicación: doses due up to now, the marked ones, the missed latest first', () => {
+	const med = (id: number, personId: string, times: string[], more: Partial<Medication> = {}) =>
+		({
+			id,
+			personId,
+			name: `M${id}`,
+			dose: null,
+			times,
+			doses: [],
+			days: [],
+			startDay: '2026-11-01',
+			endDay: null,
+			...more
+		}) as Medication;
+	const meds = [
+		med(1, '1', ['08:00', '21:00']),
+		// Started on the 24th.
+		med(2, '2', ['09:00'], { startDay: '2026-11-24' }),
+		// Not theirs.
+		med(3, '9', ['09:00'])
+	];
+	const people = [
+		{ id: '1', name: 'Ana' },
+		{ id: '2', name: 'Leo' },
+		{ id: '3', name: 'Sin nada' }
+	];
+	const taken = new Set(['1 2026-11-24 08:00', '1 2026-11-24 21:00', '1 2026-11-25 08:00']);
+	const out = medicationOf(meds, taken, people, '2026-11-24', '2026-11-30', {
+		day: '2026-11-25',
+		time: '12:00'
+	});
+	expect(out).toEqual([
+		{ personId: '1', name: 'Ana', taken: 3, due: 3, missed: [], more: 0 },
+		{
+			personId: '2',
+			name: 'Leo',
+			taken: 0,
+			due: 2,
+			missed: [
+				{ day: '2026-11-25', time: '09:00', name: 'M2' },
+				{ day: '2026-11-24', time: '09:00', name: 'M2' }
+			],
+			more: 0
+		}
+	]);
+});
+
+test('deseos: each expense once, its price without one, the ones in another currency apart', () => {
+	expect(wishesOf([], new Map())).toBeNull();
+	const w = (id: number, more: Partial<BoughtWish>): BoughtWish => ({
+		id,
+		title: `D${id}`,
+		person: 'Ana',
+		shop: 'Amazon',
+		on: '2026-11-20',
+		priceCents: null,
+		shippingCents: null,
+		extraCents: null,
+		currency: 'EUR',
+		expenseId: null,
+		...more
+	});
+	const out = wishesOf(
+		[
+			// Two bought together: one expense.
+			w(1, { expenseId: 7, priceCents: 1000 }),
+			w(2, { expenseId: 7, priceCents: 2000, on: '2026-11-21' }),
+			w(3, { priceCents: 1500, shippingCents: 300, extraCents: 200 }),
+			w(4, { priceCents: 999, currency: 'USD' }),
+			w(5, {})
+		],
+		new Map([[7, 3299]])
+	)!;
+	expect(out).toMatchObject({ count: 5, total: 3299 + 2000, unknown: 2 });
+	expect(out.items[0]).toMatchObject({ id: 2, cents: 2000 });
+	expect(out.items.find((i) => i.id === 3)!.cents).toBe(2000);
 });

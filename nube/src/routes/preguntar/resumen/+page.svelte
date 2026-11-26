@@ -9,6 +9,7 @@
 		LEAST_METRES,
 		LEAST_MONEY,
 		LEAST_WH,
+		per100Km,
 		SUMMARY_BLOCKS,
 		SUMMARY_VIEWS,
 		type SummaryBlock,
@@ -31,6 +32,9 @@
 	const charges = $derived(shows('fijos') ? data.charges : []);
 	const shopping = $derived(shows('compras') ? data.shopping : null);
 	const energy = $derived(shows('energia') ? data.energy : null);
+	const car = $derived(shows('coche') ? data.car : null);
+	const medication = $derived(shows('medicacion') ? data.medication : []);
+	const wishes = $derived(shows('deseos') ? data.wishes : null);
 	const past = $derived(shows('agenda') ? data.past : null);
 	const next = $derived(shows('agenda') ? data.next : null);
 	const p = $derived(data.period);
@@ -69,7 +73,16 @@
 		});
 	const largest = $derived(Math.max(1, ...(money?.categories ?? []).map((c) => c.total)));
 	const empty = $derived(
-		!money && !shopping && !energy && !walks && !past?.count && !next?.count && !charges.length
+		!money &&
+			!shopping &&
+			!energy &&
+			!car &&
+			!medication.length &&
+			!wishes &&
+			!walks &&
+			!past?.count &&
+			!next?.count &&
+			!charges.length
 	);
 	/** «3,2 kWh, 0,80 €»: without a price, only the kWh. */
 	const used = (wh: number, cents: number | null) =>
@@ -285,6 +298,88 @@
 			{/if}
 			<a href="/enchufes/consumo" class="mt-2 inline-block text-sm text-amber-400 hover:underline"
 				>Ver en Energía</a
+			>
+		</section>
+	{/if}
+
+	{#if car}
+		{@const c = car}
+		{@const cost = per100Km(c)}
+		<section class={card}>
+			<h3 class="mb-1 text-sm text-zinc-400">Tu coche</h3>
+			<p class="text-2xl font-semibold tabular-nums">{walkDistanceText(c.metres)}</p>
+			<p class="text-sm text-zinc-400">
+				{[
+					c.trips === 1 ? '1 viaje' : `${c.trips} viajes`,
+					c.before !== null ? against(c.metres, c.before, LEAST_METRES, walkDistanceText) : null,
+					c.fuels ? `gasolina, ${euros(c.fuel)}` : null,
+					cost !== null ? `${euros(cost)} cada 100 km` : null
+				]
+					.filter(Boolean)
+					.join(' · ')}
+			</p>
+			<p class="mt-1 text-xs text-zinc-500">
+				Lo que conduces con el modo carretera, y lo que apuntas tú en Gasolina.
+			</p>
+			<a href="/viajes" class="mt-2 inline-block text-sm text-amber-400 hover:underline"
+				>Ver en Viajes</a
+			>
+		</section>
+	{/if}
+
+	{#if medication.length}
+		<section class={card}>
+			<h3 class="mb-2 text-sm text-zinc-400">Medicación</h3>
+			<ul class="flex flex-col gap-3 text-sm">
+				{#each medication as m (m.personId)}
+					<li>
+						<p>
+							<span class="font-medium">{m.name}</span>:
+							<span class={m.taken === m.due ? 'text-emerald-400' : 'text-zinc-300'}
+								>{m.taken} de {m.due} tomas marcadas</span
+							>
+						</p>
+						{#if m.missed.length}
+							<p class="text-zinc-400">
+								Sin marcar:
+								{#each m.missed as d, i (i)}{i ? ', ' : ''}{day(d.day)}
+									{d.time}
+									{d.name}{/each}{m.more ? ` y ${m.more} más` : ''}.
+							</p>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+			<a href="/agenda/medicacion" class="mt-2 inline-block text-sm text-amber-400 hover:underline"
+				>Ver en Medicación</a
+			>
+		</section>
+	{/if}
+
+	{#if wishes}
+		{@const d = wishes}
+		<section class={card}>
+			<h3 class="mb-1 text-sm text-zinc-400">Deseos comprados</h3>
+			<p class="text-2xl font-semibold tabular-nums">{euros(d.total)}</p>
+			<p class="mb-2 text-sm text-zinc-400">
+				{d.count === 1 ? '1 deseo' : `${d.count} deseos`}{d.unknown
+					? ` · ${d.unknown === 1 ? '1 sin precio' : `${d.unknown} sin precio`}, no cuentan`
+					: ''}
+			</p>
+			<ul class="divide-y divide-zinc-800 text-sm">
+				{#each d.items as w (w.id)}
+					<li class="flex gap-3 py-1">
+						<span class="min-w-0 flex-1 truncate"
+							>{w.title} <span class="text-zinc-500">· {w.person}, {w.shop}</span></span
+						>
+						<span class="shrink-0 text-right tabular-nums"
+							>{w.cents === null ? '' : euros(w.cents)}</span
+						>
+					</li>
+				{/each}
+			</ul>
+			<a href="/deseos" class="mt-2 inline-block text-sm text-amber-400 hover:underline"
+				>Ver en Deseos</a
 			>
 		</section>
 	{/if}

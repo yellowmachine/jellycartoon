@@ -1,8 +1,18 @@
-import { addDays, dayEvents, daysBetween, timeOn } from 'comun/agenda.ts';
+import { addDays, dayEvents, daysBetween, localDay, localTime, timeOn } from 'comun/agenda.ts';
 import { nextDue } from 'comun/expenses.ts';
-import { and, eq, gte, lt } from 'drizzle-orm';
-import { familyMember, plug, plugEnergy, recurringExpense } from '#lib/server/db/schema.ts';
-import { agendaBetween } from '#lib/server/agenda/agenda.ts';
+import { and, eq, gte, inArray, isNotNull, lt, lte } from 'drizzle-orm';
+import {
+	expense,
+	familyMember,
+	medicationDose,
+	plug,
+	plugEnergy,
+	recurringExpense,
+	trip
+} from '#lib/server/db/schema.ts';
+import { agendaBetween, agendaPeople } from '#lib/server/agenda/agenda.ts';
+import { listMedication, toldFor } from '#lib/server/medication.ts';
+import { listWishes } from '#lib/server/wishes.ts';
 import { searchExpenses } from '#lib/server/expenses/expenses.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { onFootBetween } from '#lib/server/walks/on-foot.ts';
@@ -13,10 +23,13 @@ import { addKcal } from '#lib/walk-kcal.ts';
 import {
 	energyOf,
 	isSummaryBlock,
+	medicationOf,
 	moneyOf,
 	noSummaryChoice,
 	PRICE_LOOK_BACK_DAYS,
 	shoppingOf,
+	wishesOf,
+	type Car,
 	summaryPeriod,
 	type SummaryBlock,
 	type SummaryChoice,
@@ -94,7 +107,7 @@ async function chargesUntil(k: Kitchen, today: string, until: string) {
  * What the family's plugs used in the period, beside the one before only as far in: the last 7 days
  * with today going on are not set against 7 whole ones. Null, no plugs.
  */
-async function energyIn(k: Kitchen, p: SummaryPeriod, now: Date) {
+function instantsOf(p: SummaryPeriod, now: Date) {
 	const start = dayStart(p.from);
 	const end = dayStart(addDays(p.to, 1));
 	const prevStart = dayStart(p.prevFrom);
@@ -102,6 +115,11 @@ async function energyIn(k: Kitchen, p: SummaryPeriod, now: Date) {
 	const prevEnd = new Date(
 		Math.min(prevStart.getTime() + (upTo - start.getTime()), start.getTime())
 	);
+	return { start, end, prevStart, prevEnd };
+}
+
+async function energyIn(k: Kitchen, p: SummaryPeriod, now: Date) {
+	const { start, end, prevStart, prevEnd } = instantsOf(p, now);
 	return k.run(async (tx) => {
 		// Sensors (#508) use nothing.
 		const plugs = (
@@ -124,6 +142,119 @@ async function energyIn(k: Kitchen, p: SummaryPeriod, now: Date) {
 	});
 }
 
+/** Their own trips in the road mode, and what they put in Gasolina. Null, neither. */
+async function carOf(k: Kitchen, userId: string, p: SummaryPeriod, now: Date): Promise<Car | null> {
+	const { start, end, prevStart, prevEnd } = instantsOf(p, now);
+	const [trips, fuel] = await k.run((tx) =>
+		Promise.all([
+			tx
+				.select({ startedAt: trip.startedAt, distance: trip.distance })
+				.from(trip)
+				.where(
+					and(eq(trip.userId, userId), gte(trip.startedAt, prevStart), lt(trip.startedAt, end))
+				),
+			tx
+				.select({ total: expense.total })
+				.from(expense)
+				.where(
+					and(
+						eq(expense.userId, userId),
+						eq(expense.category, 'Gasolina'),
+						gte(expense.date, p.from),
+						lte(expense.date, p.to)
+					)
+				)
+		])
+	);
+	const these = trips.filter((t) => t.startedAt >= start);
+	const before = trips.filter((t) => t.startedAt < prevEnd);
+	if (!these.length && !before.length && !fuel.length) return null;
+	const metres = (list: typeof trips) => Math.round(list.reduce((s, t) => s + t.distance, 0));
+	return {
+		metres: metres(these),
+		trips: these.length,
+		before: before.length ? metres(before) : null,
+		fuel: fuel.reduce((s, e) => s + e.total, 0),
+		fuels: fuel.length
+	};
+}
+
+/** The doses of their own medication and their children's (those told to them). */
+async function medicationIn(k: Kitchen, userId: string, p: SummaryPeriod, now: Date) {
+	const meds = await listMedication(k);
+	if (!meds.length) return [];
+	const mine = new Set<string>();
+	for (const personId of new Set(meds.map((m) => m.personId)))
+		if ((await toldFor(k, Number(personId))).includes(userId)) mine.add(personId);
+	const theirs = meds.filter((m) => mine.has(m.personId));
+	if (!theirs.length) return [];
+	const [people, rows] = await Promise.all([
+		agendaPeople(k),
+		k.run((tx) =>
+			tx
+				.select({
+					id: medicationDose.medicationId,
+					day: medicationDose.day,
+					time: medicationDose.time
+				})
+				.from(medicationDose)
+				.where(
+					and(
+						inArray(
+							medicationDose.medicationId,
+							theirs.map((m) => m.id)
+						),
+						gte(medicationDose.day, p.from),
+						lte(medicationDose.day, p.to),
+						isNotNull(medicationDose.takenAt)
+					)
+				)
+		)
+	]);
+	return medicationOf(
+		theirs,
+		new Set(rows.map((r) => `${r.id} ${r.day} ${r.time.slice(0, 5)}`)),
+		people.filter((x) => mine.has(x.id)),
+		p.from,
+		p.to,
+		{ day: localDay(now), time: localTime(now) }
+	);
+}
+
+/** The wishes bought in the period, as they may see them: never the gifts for them. */
+async function wishesIn(k: Kitchen, userId: string, p: SummaryPeriod) {
+	const { people, wishes } = await listWishes(k, userId, false);
+	const names = new Map(people.map((x) => [x.id, x.name]));
+	const bought = wishes.flatMap((w) =>
+		w.bought && w.bought.on >= p.from && w.bought.on <= p.to
+			? [
+					{
+						id: w.id,
+						title: w.title,
+						person: names.get(w.personId) ?? '',
+						shop: w.shop,
+						on: w.bought.on,
+						priceCents: w.priceCents,
+						shippingCents: w.shippingCents,
+						extraCents: w.extraCents,
+						currency: w.currency,
+						expenseId: w.bought.expenseId
+					}
+				]
+			: []
+	);
+	const ids = [...new Set(bought.flatMap((w) => (w.expenseId === null ? [] : [w.expenseId])))];
+	const totals = ids.length
+		? await k.run((tx) =>
+				tx
+					.select({ id: expense.id, total: expense.total })
+					.from(expense)
+					.where(inArray(expense.id, ids))
+			)
+		: [];
+	return wishesOf(bought, new Map(totals.map((t) => [t.id, t.total])));
+}
+
 /** Resumen (summary.ts) for `userId`: the family's money and agenda, and their own going on foot. */
 export async function summaryOf(
 	k: Kitchen,
@@ -138,7 +269,7 @@ export async function summaryOf(
 	const p = summaryPeriod(view, de, today);
 	// Compras looks further back, for the prices before.
 	const since = has('compras') ? addDays(p.from, -PRICE_LOOK_BACK_DAYS) : p.prevFrom;
-	const [expenses, foot, past, next, charges, energy] = await Promise.all([
+	const [expenses, foot, past, next, charges, energy, car, medication, wishes] = await Promise.all([
 		has('dinero') || has('compras')
 			? searchExpenses(k, { text: '', from: since, to: p.to }, { limit: null })
 			: [],
@@ -149,7 +280,10 @@ export async function summaryOf(
 			: { days: [], more: 0, count: 0 },
 		has('agenda') && p.view === 'dias' ? agendaOf(k, today, p.until!) : null,
 		has('fijos') && p.until ? chargesUntil(k, today, p.until) : [],
-		has('energia') ? energyIn(k, p, now) : null
+		has('energia') ? energyIn(k, p, now) : null,
+		has('coche') ? carOf(k, userId, p, now) : null,
+		has('medicacion') ? medicationIn(k, userId, p, now) : [],
+		has('deseos') ? wishesIn(k, userId, p) : null
 	]);
 	const walked = (from: string, to: string) => {
 		const those = foot.filter((o) => o.day >= from && o.day <= to);
@@ -177,6 +311,9 @@ export async function summaryOf(
 				)
 			: null,
 		energy,
+		car,
+		medication,
+		wishes,
 		walks: walks.outings || before.outings ? { ...walks, before } : null,
 		past,
 		next,
@@ -184,8 +321,17 @@ export async function summaryOf(
 	};
 }
 
-/** The home page's card; null, they took it out. Compras and Energía are not in it. */
+/** The home page's card; null, they took it out. Only money, walks and the agenda: the rest is not in it. */
 export async function homeSummary(k: Kitchen, userId: string, today: string) {
 	const { card, off } = await summaryChoice(k, userId);
-	return card ? summaryOf(k, userId, 'dias', null, today, [...off, 'compras', 'energia']) : null;
+	return card
+		? summaryOf(k, userId, 'dias', null, today, [
+				...off,
+				'compras',
+				'energia',
+				'coche',
+				'medicacion',
+				'deseos'
+			])
+		: null;
 }
