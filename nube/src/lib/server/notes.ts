@@ -1,5 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, gte, isNull, like, lt, or, type SQL } from 'drizzle-orm';
+import {
+	and,
+	arrayContains,
+	desc,
+	eq,
+	gte,
+	isNotNull,
+	isNull,
+	like,
+	lt,
+	or,
+	sql,
+	type SQL
+} from 'drizzle-orm';
 import { note, user } from '#lib/server/db/schema.ts';
 import { kindOf } from '#lib/server/expenses/income.ts';
 import { likeOf, plain, plainText } from '#lib/server/expenses/plain.ts';
@@ -8,7 +21,8 @@ import { dayOf } from '#lib/server/fridge.ts';
 import { putFile, readFile, removeFile } from '#lib/server/storage.ts';
 import { hearAudio } from '#lib/server/voice/hear.ts';
 import { walkStartedAt } from '#lib/server/walks/walks.ts';
-import { audioKind, audioTypeOf, MAX_NOTE_TEXT, type Note } from '#lib/notes.ts';
+import { audioKind, audioTypeOf, MAX_NOTE_TEXT, type Note, type NoteArticle } from '#lib/notes.ts';
+import { readArticle } from '#lib/server/notes-reader.ts';
 
 /**
  * Notes (#416): what someone dictates, to look it up when they ask for it. Not the voice's memory,
@@ -51,7 +65,14 @@ const VIEW = {
 	source: note.source,
 	userId: note.userId,
 	lon: note.lon,
-	lat: note.lat
+	lat: note.lat,
+	link: note.link,
+	tags: note.tags,
+	// Not the article itself: only to say what it is (its page reads it).
+	article: sql<{
+		minutes: number;
+		site: string | null;
+	} | null>`case when ${note.article} is null then null else jsonb_build_object('minutes', (${note.article}->>'minutes')::int, 'site', ${note.article}->>'site') end`
 };
 
 type Row = Omit<Note, 'hasAudio' | 'mine' | 'canEdit'> & {
@@ -107,6 +128,7 @@ export async function addWrittenNote(
 		/** When and where its photo was taken (#613), if known. */
 		at?: Date | null;
 		position?: [number, number] | null;
+		tags?: string[];
 	}
 ) {
 	const text = sent.text.trim().slice(0, MAX_NOTE_TEXT);
@@ -131,7 +153,8 @@ export async function addWrittenNote(
 					...(sent.at ? { at: sent.at } : {}),
 					lon: sent.position?.[0] ?? null,
 					lat: sent.position?.[1] ?? null,
-					source: 'escrita'
+					source: 'escrita',
+					tags: sent.tags ?? []
 				})
 				.returning({ id: note.id })
 		);
@@ -259,16 +282,37 @@ export async function hearAgain(k: Kitchen, who: { id: string; email: string }, 
 	return true;
 }
 
-/** Those found, the latest first; `words`, without caring for accents or capitals. */
+/** Of «Notas» or «Para leer» (#634), and with a tag; undefined, any. */
+export interface NoteFilter {
+	pages?: boolean;
+	tag?: string | null;
+}
+
+/**
+ * Those found, the latest first; `words`, without caring for accents or capitals, in what it says
+ * and in its article.
+ */
 function find(
 	k: Kitchen,
 	userId: string | null,
 	words: string | null,
 	limit: number,
-	house = false
+	house = false,
+	filter: NoteFilter = {}
 ) {
 	const where: (SQL | undefined)[] = [house ? ofTheHouse() : visibleTo(userId)];
-	if (words?.trim()) where.push(like(plain(note.text), likeOf(plainText(words.trim()))));
+	if (words?.trim()) {
+		const pattern = likeOf(plainText(words.trim()));
+		where.push(
+			or(
+				like(plain(note.text), pattern),
+				like(plain(sql`coalesce(${note.article}->>'text', '')`), pattern)
+			)
+		);
+	}
+	if (filter.pages !== undefined)
+		where.push(filter.pages ? isNotNull(note.link) : isNull(note.link));
+	if (filter.tag) where.push(arrayContains(note.tags, [filter.tag]));
 	return k.run((tx) =>
 		tx
 			.select(VIEW)
@@ -285,9 +329,77 @@ export async function listNotes(
 	k: Kitchen,
 	userId: string,
 	words: string | null,
-	{ house = false, limit = 200 } = {}
+	{ house = false, limit = 200, ...filter }: { house?: boolean; limit?: number } & NoteFilter = {}
 ) {
-	return (await find(k, userId, words, limit, house)).map((n) => viewOf(n, userId));
+	return (await find(k, userId, words, limit, house, filter)).map((n) => viewOf(n, userId));
+}
+
+/**
+ * «Guardar en Notas» of a web (#633, #634): its name and the link, private, with its article read
+ * now (Readability) when it can be. `read`, whether it could.
+ */
+export async function addWebNote(
+	k: Kitchen,
+	userId: string,
+	sent: { link: string; title: string; tags?: string[] }
+) {
+	const article = await readArticle(sent.link);
+	const title = (sent.title.trim() || article?.title || sent.link).slice(0, MAX_NOTE_TEXT);
+	const [row] = await k.run((tx) =>
+		tx
+			.insert(note)
+			.values({
+				familyId: k.familyId,
+				userId,
+				text: title,
+				shared: false,
+				source: 'escrita',
+				link: sent.link,
+				article,
+				tags: sent.tags ?? []
+			})
+			.returning({ id: note.id })
+	);
+	return { id: row!.id, read: article !== null };
+}
+
+/** A web's note with its article, as `userId` may see it; null, not theirs to see. */
+export async function noteArticle(k: Kitchen, userId: string, id: number) {
+	const [row] = await k.run((tx) =>
+		tx
+			.select({ ...VIEW, full: note.article })
+			.from(note)
+			.leftJoin(user, eq(user.id, note.userId))
+			.where(and(eq(note.id, id), visibleTo(userId), isNotNull(note.link)))
+	);
+	if (!row) return null;
+	const { full, ...rest } = row;
+	return { note: viewOf(rest, userId), article: full as NoteArticle | null };
+}
+
+/** Its tags, by who may change it. */
+export async function setNoteTags(k: Kitchen, userId: string, id: number, tags: string[]) {
+	const done = await k.run((tx) =>
+		tx
+			.update(note)
+			.set({ tags })
+			.where(and(eq(note.id, id), changeableBy(userId)))
+			.returning({ id: note.id })
+	);
+	return done.length > 0;
+}
+
+/** The tags they use, the most used first: to suggest and to filter by. */
+export async function noteTags(k: Kitchen, userId: string) {
+	const rows = await k.run((tx) =>
+		tx
+			.select({ tag: sql<string>`unnest(${note.tags})` })
+			.from(note)
+			.where(visibleTo(userId))
+	);
+	const count = new Map<string, number>();
+	for (const { tag } of rows) count.set(tag, (count.get(tag) ?? 0) + 1);
+	return [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es')).map(([t]) => t);
 }
 
 /** One's own walk's notes, in order. */

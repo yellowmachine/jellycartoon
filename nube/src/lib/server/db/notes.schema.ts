@@ -1,7 +1,9 @@
+import { sql } from 'drizzle-orm';
 import {
 	boolean,
 	index,
 	integer,
+	jsonb,
 	pgTable,
 	real,
 	serial,
@@ -12,6 +14,7 @@ import {
 import { user } from './auth.schema.ts';
 import { family, familyRows } from './family.schema.ts';
 import { walk } from './walks.schema.ts';
+import type { NoteArticle } from '#lib/notes.ts';
 
 /**
  * Notes (#416): what someone dictates, to look it up when they ask for it; the voice does not use
@@ -47,7 +50,20 @@ export const note = pgTable(
 		lon: real('lon'),
 		lat: real('lat'),
 		/** When it was said, not when it arrived: a walk can go without coverage. */
-		at: timestamp('at').notNull().defaultNow()
+		at: timestamp('at').notNull().defaultNow(),
+		/** A web saved to read later (#633, #634, «Para leer»): its address. */
+		link: text('link'),
+		/**
+		 * That web cleaned as Firefox's reader does (Readability): its article as it was when saved,
+		 * only to read, sanitized and without pictures. Null, not readable (a paywall, a site that
+		 * blocks servers): the note keeps its name and the link.
+		 */
+		article: jsonb('article').$type<NoteArticle>(),
+		/** Its tags (#634), as its person wrote them: «cocina», «niños». */
+		tags: text('tags')
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`)
 	},
 	(t) => [
 		unique('note_user_client').on(t.userId, t.clientId),

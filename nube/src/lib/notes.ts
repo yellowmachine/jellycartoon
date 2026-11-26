@@ -47,6 +47,11 @@ export interface Note {
 	canEdit: boolean;
 	lon: number | null;
 	lat: number | null;
+	/** A web saved to read later (#634): its address; null, an ordinary note. */
+	link: string | null;
+	/** Of that web's article, when it could be read: to say it before opening it. */
+	article: { minutes: number; site: string | null } | null;
+	tags: string[];
 }
 
 /** When a photo says it was taken, if it makes sense: not to come, nor before there were any. */
@@ -96,4 +101,41 @@ export function notesAndPhotos(
 		}))
 	];
 	return items.sort((a, b) => b.at.getTime() - a.at.getTime());
+}
+
+/**
+ * A web saved to read later (#634): its article, cleaned (Readability) and sanitized, without
+ * pictures; only to read. Its `text`, for the search.
+ */
+export interface NoteArticle {
+	title: string;
+	byline: string | null;
+	site: string | null;
+	html: string;
+	text: string;
+	/** To read it, at about 220 words a minute. */
+	minutes: number;
+}
+
+/** Tags of a note, at most; and each, at most this long. */
+export const MAX_NOTE_TAGS = 10;
+export const MAX_TAG = 30;
+
+/**
+ * Tags as written, «Cocina, niños»: each lowercase and trimmed, without a leading #, once each, in
+ * the order given.
+ */
+export function parseTags(written: string) {
+	const seen = new Set<string>();
+	for (const raw of written.split(/[,\n]/)) {
+		const tag = raw
+			.trim()
+			.replace(/^#+/, '')
+			.replace(/\s+/g, ' ')
+			.trim()
+			.toLowerCase()
+			.slice(0, MAX_TAG);
+		if (tag) seen.add(tag);
+	}
+	return [...seen].slice(0, MAX_NOTE_TAGS);
 }

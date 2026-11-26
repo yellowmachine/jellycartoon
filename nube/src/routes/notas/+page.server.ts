@@ -2,14 +2,19 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import {
+	addWebNote,
 	addWrittenNote,
 	deleteNote,
 	editNote,
 	hearAgain,
 	listNotes,
 	NotAPhoto,
+	noteTags,
+	setNoteTags,
 	shareNote
 } from '#lib/server/notes.ts';
+import { linkOf } from '#lib/server/wishes.ts';
+import { parseTags } from '#lib/notes.ts';
 import { deleteWalkPhoto, listWalkPhotos } from '#lib/server/walks/walks.ts';
 import { photoMoment } from '#lib/notes.ts';
 import { isLngLat } from 'comun/road.ts';
@@ -18,18 +23,22 @@ import { MAX_NOTE_PHOTO_BYTES } from '#lib/notes.ts';
 
 /**
  * Notas (#416): one's own and those of the whole house, the latest first; `?q=`, searched; `?casa`, only
- * the house's.
+ * the house's; `?leer`, «Para leer» (#634): the webs saved to read later; `?etiqueta=`, those with
+ * that tag.
  */
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const q = url.searchParams.get('q')?.trim() || null;
-	const house = url.searchParams.has('casa');
+	const reading = url.searchParams.has('leer');
+	const house = !reading && url.searchParams.has('casa');
+	const tag = url.searchParams.get('etiqueta')?.trim().toLowerCase() || null;
 	const k = await kitchenOf(locals.user!.id);
 	// The walks' photos (#613), one's own: they say nothing to be searched by.
-	const [notes, photos] = await Promise.all([
-		listNotes(k, locals.user!.id, q, { house }),
-		q || house ? [] : listWalkPhotos(k)
+	const [notes, photos, tags] = await Promise.all([
+		listNotes(k, locals.user!.id, q, { house, pages: reading, tag }),
+		q || house || reading || tag ? [] : listWalkPhotos(k),
+		noteTags(k, locals.user!.id)
 	]);
-	return { notes, photos, q, house };
+	return { notes, photos, q, house, reading, tag, tags };
 };
 
 const idOf = (form: FormData) => {
@@ -52,7 +61,8 @@ export const actions: Actions = {
 				photo: photo && new Uint8Array(await photo.arrayBuffer()),
 				shared: form.has('shared'),
 				at: photo ? photoMoment(Number(form.get('at'))) : null,
-				position: photo && form.has('lon') && isLngLat(position) ? position : null
+				position: photo && form.has('lon') && isLngLat(position) ? position : null,
+				tags: parseTags(String(form.get('tags') ?? ''))
 			});
 			if (!id) return fail(400, { message: 'Una nota necesita algo escrito o una foto' });
 		} catch (err) {
@@ -70,6 +80,23 @@ export const actions: Actions = {
 		const k = await kitchenOf(locals.user!.id);
 		if (!(await editNote(k, locals.user!.id, id, text)))
 			return fail(404, { message: 'Esa nota ya no está' });
+		await setNoteTags(k, locals.user!.id, id, parseTags(String(form.get('tags') ?? '')));
+	},
+	/** «Para leer» (#634): a web pasted, saved with its article if it can be read. */
+	link: async ({ request, locals }) => {
+		const form = await request.formData();
+		const link = linkOf(form.get('url'));
+		if (!link) return fail(400, { message: 'Eso no es un enlace' });
+		const { read } = await addWebNote(await kitchenOf(locals.user!.id), locals.user!.id, {
+			link,
+			title: '',
+			tags: parseTags(String(form.get('tags') ?? ''))
+		});
+		return {
+			saved: read
+				? 'Guardada para leer.'
+				: 'Guardada, pero esa web no deja leerla desde Seilide: queda el enlace.'
+		};
 	},
 	/** Shown to the whole house (`shared`), or only to its person again. */
 	share: async ({ request, locals }) => {

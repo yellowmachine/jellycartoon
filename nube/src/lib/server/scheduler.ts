@@ -22,6 +22,7 @@ import { indexAll as indexAllGames } from '#lib/server/own-games.ts';
 import { syncFamily } from '#lib/server/banks/bank.ts';
 import { visits } from '#lib/server/section-visits.ts';
 import { summarizeOldPositions } from '#lib/server/owntracks/retention.ts';
+import { sendSummaryNotices } from '#lib/server/summary-notice.ts';
 
 /**
  * The cloud's own clock (#253): every few seconds, each family's alarms whose time has come; every
@@ -40,6 +41,8 @@ const TICK_MS = 10_000;
 const NOTICES_MS = 60_000;
 /** When the families' OpenRouter keys are looked at, to say that one is about to expire. */
 const KEY_CHECK_AT = '10:00';
+/** When «Ya está el resumen…» goes, on a Monday or a 1st (#624): the morning, with the night's done. */
+const SUMMARY_NOTICE_AT = '08:00';
 
 async function families() {
 	const rows = await db.execute<{ id: string }>(sql`select family_ids() as id`);
@@ -79,6 +82,7 @@ export function startScheduler() {
 	let day = localDay();
 	let summarized = '';
 	let keysChecked = '';
+	let summaryNoticed = '';
 	let lastNotices = 0;
 	let busy = false;
 	setInterval(async () => {
@@ -101,6 +105,12 @@ export function startScheduler() {
 					await eachFamily('Caducidad de la clave de IA', warnKeyExpiring);
 					// Butane or pellet about to run out with the cold to come (#513).
 					await eachFamily('Butano y pellet', fuelAlerts);
+				}
+				// «Ya está el resumen…» (#624), once a day; after a restart, not twice (its tag).
+				if (localTime() >= SUMMARY_NOTICE_AT && summaryNoticed !== localDay()) {
+					summaryNoticed = localDay();
+					const today = localDay();
+					await eachFamily('Aviso del resumen', (id) => sendSummaryNotices(id, today));
 				}
 				// «Hoy he aprendido» (#331, phase 6), once a day; again after a restart only replaces it.
 				if (localTime() >= SUMMARY_AT && summarized !== localDay()) {

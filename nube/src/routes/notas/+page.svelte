@@ -5,7 +5,7 @@
 	import WalkUploads from '#lib/components/WalkUploads.svelte';
 	import { noteRecorder } from '#lib/note-recorder.svelte.ts';
 	import { herePosition, shrinkPhoto } from '#lib/mensajes/photo.ts';
-	import { MAX_NOTE_TEXT, notesAndPhotos, photoMoment } from '#lib/notes.ts';
+	import { MAX_NOTE_TEXT, MAX_NOTE_TAGS, notesAndPhotos, photoMoment } from '#lib/notes.ts';
 	import { photoTaken } from '#lib/photo-taken.ts';
 	import { keepAttachment } from '#lib/walk-attachments.ts';
 	import { walkUploads } from '#lib/walk-uploads.svelte.ts';
@@ -43,6 +43,20 @@
 		herePosition()
 			.then((p): [number, number] => [p.lon, p.lat])
 			.catch(() => null);
+
+	/** This page with what is chosen now, but for what changes (#634). */
+	const link = (change: { tab?: 'todas' | 'casa' | 'leer'; etiqueta?: string | null }) => {
+		const tab = change.tab ?? (data.reading ? 'leer' : data.house ? 'casa' : 'todas');
+		const params = new URLSearchParams();
+		if (tab !== 'todas') params.set(tab, '');
+		const tag = change.etiqueta === undefined ? data.tag : change.etiqueta;
+		if (tag) params.set('etiqueta', tag);
+		const query = `${params}`.replace(/=(&|$)/g, '$1');
+		return query ? `/notas?${query}` : '/notas';
+	};
+	const chip = (on: boolean) =>
+		on ? 'bg-zinc-700 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white';
+	let pasting = $state(false);
 
 	const items = $derived(
 		notesAndPhotos(data.notes, data.photos, (d) => d.toLocaleDateString('sv'))
@@ -234,6 +248,13 @@
 				📍 Guardar dónde se hizo (solo lo ves tú)
 			</label>
 		{/if}
+		<input
+			name="tags"
+			list="etiquetas"
+			placeholder="Etiquetas: cocina, niños…"
+			aria-label="Etiquetas, separadas por comas (hasta {MAX_NOTE_TAGS})"
+			class="mb-2 w-full rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500"
+		/>
 		<div class="flex flex-wrap items-center gap-3 text-sm">
 			<label class="flex items-center gap-2">
 				<input
@@ -260,25 +281,90 @@
 	<p class="mb-4 text-sm text-red-400" role="alert">{form.message}</p>
 {/if}
 
-<nav class="mb-3 flex gap-2 text-sm" aria-label="Qué notas">
-	{#each [{ house: false, href: '/notas', label: 'Todas' }, { house: true, href: '/notas?casa', label: 'De la casa' }] as tab (tab.href)}
+<datalist id="etiquetas">
+	{#each data.tags as t (t)}<option value={t}></option>{/each}
+</datalist>
+
+<nav class="mb-3 flex flex-wrap gap-2 text-sm" aria-label="Qué notas">
+	{#each [{ tab: 'todas', on: !data.house && !data.reading, label: 'Todas' }, { tab: 'casa', on: data.house, label: 'De la casa' }, { tab: 'leer', on: data.reading, label: '📖 Para leer' }] as const as t (t.tab)}
 		<a
-			href={tab.href}
-			aria-current={data.house === tab.house ? 'page' : undefined}
+			href={link({ tab: t.tab })}
+			aria-current={t.on ? 'page' : undefined}
 			class={[
 				'rounded-full px-3 py-1',
-				data.house === tab.house ? 'bg-zinc-700 text-white' : 'bg-zinc-900 text-zinc-400'
-			]}>{tab.label}</a
+				t.on ? 'bg-zinc-700 text-white' : 'bg-zinc-900 text-zinc-400'
+			]}>{t.label}</a
 		>
 	{/each}
 </nav>
+{#if data.tags.length}
+	<nav class="mb-3 flex flex-wrap gap-2 text-xs" aria-label="Etiquetas">
+		<a href={link({ etiqueta: null })} class="rounded-full px-2.5 py-1 {chip(!data.tag)}"
+			>Todas las etiquetas</a
+		>
+		{#each data.tags as t (t)}
+			<a
+				href={link({ etiqueta: t })}
+				aria-current={data.tag === t ? 'page' : undefined}
+				class="rounded-full px-2.5 py-1 {chip(data.tag === t)}">#{t}</a
+			>
+		{/each}
+	</nav>
+{/if}
+{#if data.reading}
+	<form
+		method="post"
+		action="?/link"
+		class="mb-4 flex flex-wrap gap-2"
+		use:enhance={() => {
+			pasting = true;
+			return async ({ update }) => {
+				await update();
+				pasting = false;
+			};
+		}}
+	>
+		<input
+			name="url"
+			type="url"
+			required
+			placeholder="Pega el enlace de una web para leerla luego"
+			aria-label="Enlace de la web"
+			class="min-w-0 flex-1 basis-64 rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500"
+		/>
+		<input
+			name="tags"
+			list="etiquetas"
+			placeholder="Etiquetas"
+			aria-label="Etiquetas, separadas por comas"
+			class="w-36 rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500"
+		/>
+		<button
+			class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 disabled:opacity-50"
+			disabled={pasting}>{pasting ? 'Leyendo la web…' : 'Guardar'}</button
+		>
+	</form>
+	{#if form && 'saved' in form && form.saved}
+		<p class="mb-4 text-sm text-emerald-300" role="status">{form.saved}</p>
+	{/if}
+	<p class="mb-4 text-xs text-zinc-500">
+		Se guarda limpia, como en el modo lectura del navegador: el texto, sin anuncios ni fotos.
+		También desde el marcador «📥 A Seilide» o compartiendo el enlace con Seilide en el móvil.
+	</p>
+{/if}
 <form method="get" class="mb-6 flex gap-2">
 	{#if data.house}<input type="hidden" name="casa" value="" />{/if}
+	{#if data.reading}<input type="hidden" name="leer" value="" />{/if}
+	{#if data.tag}<input type="hidden" name="etiqueta" value={data.tag} />{/if}
 	<input
 		name="q"
 		type="search"
 		value={data.q ?? ''}
-		placeholder={data.house ? 'Buscar en las de la casa' : 'Buscar en las notas'}
+		placeholder={data.reading
+			? 'Buscar en lo guardado para leer'
+			: data.house
+				? 'Buscar en las de la casa'
+				: 'Buscar en las notas'}
 		class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500"
 	/>
 	<button class="rounded-md bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700">Buscar</button>
@@ -335,9 +421,11 @@
 				{@const n = item.note}
 				<li class="p-3">
 					<p class="mb-1 text-xs text-zinc-500">
-						{when.format(new Date(n.at))} · {n.photo && n.source === 'escrita'
-							? 'Con foto'
-							: SOURCE[n.source]}{n.author ? ` · de ${n.author}` : ''}{n.shared
+						{when.format(new Date(n.at))} · {n.link
+							? 'Para leer'
+							: n.photo && n.source === 'escrita'
+								? 'Con foto'
+								: SOURCE[n.source]}{n.author ? ` · de ${n.author}` : ''}{n.shared
 							? ' · para toda la casa'
 							: ''}{n.lon !== null ? ' · 📍' : ''}
 					</p>
@@ -359,6 +447,14 @@
 								class="mb-2 w-full rounded-md border-zinc-700 bg-zinc-950 text-sm focus:border-amber-500 focus:ring-amber-500"
 								>{n.text}</textarea
 							>
+							<input
+								name="tags"
+								list="etiquetas"
+								value={n.tags.join(', ')}
+								placeholder="Etiquetas: cocina, niños…"
+								aria-label="Etiquetas, separadas por comas"
+								class="mb-2 w-full rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500"
+							/>
 							<div class="flex gap-3 text-sm">
 								<button class="rounded-md bg-amber-500 px-3 py-1 font-medium text-zinc-950"
 									>Guardar</button
@@ -376,6 +472,39 @@
 						<p class="text-sm text-zinc-400">Transcribiendo…</p>
 					{:else}
 						<p class="text-sm text-amber-300">No se pudo transcribir.</p>
+					{/if}
+					{#if n.link && editing !== n.id}
+						<p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+							{#if n.article}
+								<a href="/notas/{n.id}/leer" class="font-medium text-amber-400 hover:underline"
+									>📖 Leer</a
+								>
+								<span class="text-zinc-500"
+									>{n.article.minutes} min{n.article.site ? ` · ${n.article.site}` : ''}</span
+								>
+							{:else}
+								<span class="text-zinc-500">Sin el texto: esa web no deja leerla desde Seilide</span
+								>
+							{/if}
+							<a
+								href={n.link}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="truncate text-zinc-400 hover:underline"
+								>{new URL(n.link).hostname.replace(/^www\./, '')} ↗</a
+							>
+						</p>
+					{/if}
+					{#if n.tags.length && editing !== n.id}
+						<p class="mt-1 flex flex-wrap gap-1.5 text-xs">
+							{#each n.tags as t (t)}
+								<a
+									href={link({ etiqueta: t })}
+									class="rounded-full bg-zinc-800 px-2 py-0.5 text-zinc-300 hover:text-white"
+									>#{t}</a
+								>
+							{/each}
+						</p>
 					{/if}
 					{#if n.photo}
 						<button
@@ -438,7 +567,13 @@
 	<p class="text-zinc-400">Ninguna nota dice «{data.q}».</p>
 {:else}
 	<p class="text-zinc-400">
-		{data.house ? 'Todavía no hay notas de toda la casa.' : 'Todavía no hay notas.'}
+		{data.tag
+			? `Ninguna nota con #${data.tag}.`
+			: data.reading
+				? 'Nada guardado para leer todavía.'
+				: data.house
+					? 'Todavía no hay notas de toda la casa.'
+					: 'Todavía no hay notas.'}
 	</p>
 {/if}
 

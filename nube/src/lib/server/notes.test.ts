@@ -5,7 +5,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { sql } from 'drizzle-orm';
 import * as schema from '#lib/server/db/schema.ts';
 import { family, note, user, walk, walkPhoto } from '#lib/server/db/schema.ts';
-import { notesAndPhotos, photoMoment, type Note } from '#lib/notes.ts';
+import { notesAndPhotos, photoMoment, type Note, type NoteArticle } from '#lib/notes.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 
 /** Notes (#416) and a walk's photos on PGlite, with the files and the hearing faked. */
@@ -40,10 +40,18 @@ mock.module('#lib/server/fridge.ts', () => ({
 	addItems: async () => []
 }));
 mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => null }));
+// «Para leer» (#634): the webs' articles, as if read (notes-reader.test.ts reads for real).
+const articles = new Map<string, NoteArticle>();
+mock.module('#lib/server/notes-reader.ts', () => ({
+	readArticle: async (url: string) => articles.get(url) ?? null,
+	safeArticleHtml: (html: string) => html,
+	articleOf: () => null
+}));
 
 const {
 	addRecordedNote,
 	addSaidNote,
+	addWebNote,
 	addWrittenNote,
 	deleteNote,
 	deleteWalkNotes,
@@ -52,8 +60,11 @@ const {
 	hearAgain,
 	listNotes,
 	noteAudio,
+	noteArticle,
 	notePhoto,
+	noteTags,
 	NotAPhoto,
+	setNoteTags,
 	shareNote,
 	NotAudio,
 	walkNotes
@@ -410,4 +421,55 @@ test('shared: the house sees it, only its person changes it, and can take it bac
 	expect(await shareNote(ana, 'ana', n!.id, false)).toBe(true);
 	expect(await listNotes(luis, 'luis', null)).toHaveLength(0);
 	expect(await notePhoto(luis, 'luis', n!.id)).toBeNull();
+});
+
+test('«Para leer» (#634): a web with its article, apart; found by what it says; and their tags', async () => {
+	articles.set('https://pan.es/masa-madre', {
+		title: 'Pan de masa madre',
+		byline: 'Ana',
+		site: 'Pan',
+		html: '<p>Harina, agua y paciencia.</p>',
+		text: 'Harina, agua y paciencia: el centeno ayuda.',
+		minutes: 4
+	});
+	const read = await addWebNote(ana, 'ana', {
+		link: 'https://pan.es/masa-madre',
+		title: '',
+		tags: ['cocina']
+	});
+	expect(read.read).toBe(true);
+	// A paywall: kept with its name and link, no article.
+	const paid = await addWebNote(ana, 'ana', { link: 'https://diario.es/pago', title: 'De pago' });
+	expect(paid.read).toBe(false);
+	await addWrittenNote(ana, 'ana', {
+		text: 'Comprar centeno',
+		photo: null,
+		shared: false,
+		tags: ['cocina', 'compra']
+	});
+
+	const titles = async (filter: Parameters<typeof listNotes>[3], words: string | null = null) =>
+		(await listNotes(ana, 'ana', words, filter)).map((x) => x.text).sort();
+	expect(await titles({ pages: true })).toEqual(['De pago', 'Pan de masa madre']);
+	expect(await titles({ pages: false })).toEqual(['Comprar centeno']);
+	// What the article says, too; accents aside.
+	expect(await titles({}, 'CENTÉNO')).toEqual(['Comprar centeno', 'Pan de masa madre']);
+	expect(await titles({ tag: 'compra' })).toEqual(['Comprar centeno']);
+
+	const [web] = await listNotes(ana, 'ana', null, { pages: true, tag: 'cocina' });
+	expect(web).toMatchObject({
+		link: 'https://pan.es/masa-madre',
+		article: { minutes: 4, site: 'Pan' },
+		tags: ['cocina']
+	});
+	expect((await noteArticle(ana, 'ana', read.id))!.article!.html).toBe(
+		'<p>Harina, agua y paciencia.</p>'
+	);
+	expect((await noteArticle(ana, 'ana', paid.id))!.article).toBeNull();
+	// Another's, not shared: neither seen nor changed.
+	expect(await noteArticle(kitchen('luis'), 'luis', read.id)).toBeNull();
+	expect(await setNoteTags(kitchen('luis'), 'luis', read.id, ['mía'])).toBe(false);
+
+	expect(await noteTags(ana, 'ana')).toEqual(['cocina', 'compra']);
+	expect(await noteTags(kitchen('luis'), 'luis')).toEqual([]);
 });

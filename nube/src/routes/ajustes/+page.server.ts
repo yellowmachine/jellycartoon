@@ -136,7 +136,13 @@ import { familyLinks } from '#lib/server/family-links.ts';
 import { deleteCar, listCars, myCarId, saveCar, setMyCar } from '#lib/server/trips/cars.ts';
 import { MAX_CAR_NAME } from '#lib/cars.ts';
 import { setSummaryChoice, summaryChoice } from '#lib/server/summary.ts';
-import { SUMMARY_BLOCKS, type SummaryBlock } from '#lib/summary.ts';
+import {
+	isNoticeView,
+	NOTICE_VIEWS,
+	SUMMARY_BLOCKS,
+	type NoticeView,
+	type SummaryBlock
+} from '#lib/summary.ts';
 import { chargeNotices, setChargeNotices } from '#lib/server/expenses/charges.ts';
 import { isNoticeDays } from '#lib/charges.ts';
 import { weight } from '#lib/server/walks/weight.ts';
@@ -460,9 +466,16 @@ export const actions: Actions = {
 	saveSummary: async ({ request, locals }) => {
 		const form = await request.formData();
 		const on = form.getAll('block');
-		await setSummaryChoice(await kitchenOf(locals.user!.id), locals.user!.id, {
+		const k = await kitchenOf(locals.user!.id);
+		const before = await summaryChoice(k, locals.user!.id);
+		// «Avisarme» (#624, phase 4): turned on, both; then each as ticked. Both unticked, off.
+		const views = form.getAll('noticeView').filter((v): v is NoticeView => isNoticeView(v));
+		const notice =
+			form.get('notice') !== 'on' ? [] : before.notice.length ? views : [...NOTICE_VIEWS];
+		await setSummaryChoice(k, locals.user!.id, {
 			card: form.get('card') === 'on',
-			off: (Object.keys(SUMMARY_BLOCKS) as SummaryBlock[]).filter((b) => !on.includes(b))
+			off: (Object.keys(SUMMARY_BLOCKS) as SummaryBlock[]).filter((b) => !on.includes(b)),
+			notice
 		});
 	},
 	/** «Cargos que vienen», theirs: off, the days stay as they were. */
