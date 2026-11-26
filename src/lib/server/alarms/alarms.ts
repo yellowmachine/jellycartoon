@@ -4,7 +4,7 @@ import type { Alarm, AlarmPlace } from 'comun/alarms.ts';
 import { describeTimers, sameLabel, timeLabel } from 'comun/timer-names.ts';
 import { db } from '#lib/server/db/index.ts';
 import { alarm, alarmPerson } from '#lib/server/db/schema.ts';
-import { cloudAlarmStopped, tellGroup } from '#lib/server/kitchen.ts';
+import { cloudAlarmStopped } from '#lib/server/kitchen.ts';
 import { log } from '#lib/server/log.ts';
 import {
 	controlSnapcast,
@@ -335,7 +335,6 @@ async function due() {
 	for (const row of rows) {
 		await db.update(alarm).set({ nextAt: null, ringingSince: now }).where(eq(alarm.id, row.id));
 		log.info('avisos', `Suena: «${row.label}»`, { place: row.place });
-		void tellRinging(row).catch((error) => log.warn('avisos', 'Al avisar', { error }));
 	}
 	// What is over (stopped, and not coming again) and prepared ones never started, forgotten.
 	await db
@@ -354,15 +353,6 @@ async function due() {
 		void ringServer();
 	}
 	await schedule();
-}
-
-/** A house's timer (for nobody), to the family's group too (its Telegram bot, in the cloud). */
-async function tellRinging(row: Row) {
-	const people = await db
-		.select({ id: alarmPerson.userId })
-		.from(alarmPerson)
-		.where(eq(alarmPerson.alarmId, row.id));
-	if (!people.length) await tellGroup(`⏰ Suena: ${row.label}`);
 }
 
 /** Those ringing, and for less than `RING_MAX_MS`: to be heard. */

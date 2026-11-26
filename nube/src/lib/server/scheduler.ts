@@ -14,7 +14,6 @@ import { fuelAlerts } from '#lib/server/energy/fuel.ts';
 import { checkTimedRules } from '#lib/server/rules.ts';
 import { warnKeyExpiring } from '#lib/server/ai-stopped.ts';
 import { learnPending, proposeRules, SUMMARY_AT, summarizeLearned } from '#lib/server/learn.ts';
-import { hasBot, startBot } from '#lib/server/telegram/bot.ts';
 import { refreshAll, REFRESH_HOURS } from '#lib/server/podcasts/podcasts.ts';
 import { cleanupCopies } from '#lib/server/storage-move.ts';
 import { indexAll } from '#lib/server/own-music.ts';
@@ -31,7 +30,7 @@ import { sendSummaryNotices } from '#lib/server/summary-notice.ts';
  * OpenRouter key is about to expire and whether their butane or pellet runs out (#513); at midnight,
  * the fridges' «Hoy», what the voice remembered until yesterday (#331) and Preguntar's messages
  * over a month old (#470); every few hours, its
- * podcasts' feeds; every hour, the payments of each one's bank (#502). At startup, the families' Telegram bots. The families come from a function of
+ * podcasts' feeds; every hour, the payments of each one's bank (#502). The families come from a function of
  * the database's owner that gives only their ids (migration 0007): each is then looked at within
  * its own family, as everything else.
  */
@@ -61,9 +60,6 @@ let started = false;
 export function startScheduler() {
 	if (started) return;
 	started = true;
-	void eachFamily('Telegram', async (id) => {
-		if (await hasBot(id)) await startBot(id);
-	});
 	// A few minutes after starting, not to add to its load; then every REFRESH_HOURS.
 	const podcasts = () => void eachFamily('Podcasts', refreshAll);
 	setTimeout(podcasts, 5 * 60_000).unref();

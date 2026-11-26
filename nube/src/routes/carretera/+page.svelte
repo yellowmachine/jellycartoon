@@ -61,7 +61,6 @@
 	import { phone as tel } from '#lib/phone.svelte.ts';
 	import type { IncomingCall } from '#lib/calls.ts';
 	import { WAKE_WORDS, isWakeWord } from 'comun/wake-words.ts';
-	import { telegramSaid, type TelegramMessage } from 'comun/telegram.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -76,16 +75,7 @@
 	let { data }: PageProps = $props();
 
 	type Tab =
-		| 'radio'
-		| 'musica'
-		| 'listas'
-		| 'podcasts'
-		| 'ruta'
-		| 'mas'
-		| 'llamar'
-		| 'dj'
-		| 'telegram'
-		| 'mensajes';
+		'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta' | 'mas' | 'llamar' | 'dj' | 'mensajes';
 	/**
 	 * The right-hand side (or the whole screen, without the map beside): Inicio (`null`), with what
 	 * plays, the microphone and a big button for each section; or a section, its list filling it, with
@@ -354,46 +344,6 @@
 		return () => messagesVoice.stopListening();
 	});
 
-	// ——— Telegram (#243): the messages that come, read aloud; the account is the house's (#253) ———
-
-	const TELEGRAM_KEY = 'jellycartoon:carretera-telegram';
-	/** «Leer en voz alta los mensajes que lleguen», on this phone: off unless asked. */
-	let telegramOn = $state(false);
-	/** The last ones that came while on, the newest first. */
-	let telegramMessages = $state<TelegramMessage[]>([]);
-	$effect(() => {
-		try {
-			telegramOn = localStorage.getItem(TELEGRAM_KEY) === 'on';
-		} catch {
-			// Private windows: off.
-		}
-	});
-	function setTelegram(on: boolean) {
-		telegramOn = on;
-		try {
-			if (on) localStorage.setItem(TELEGRAM_KEY, 'on');
-			else localStorage.removeItem(TELEGRAM_KEY);
-		} catch {
-			// Same.
-		}
-	}
-	// While on, whatever the tab: each one said as it comes, over the music lowered.
-	$effect(() => {
-		if (!data.telegram || !telegramOn) return;
-		const events = new EventSource('/api/telegram');
-		events.onmessage = (e) => {
-			const message = JSON.parse(e.data) as TelegramMessage;
-			telegramMessages = [message, ...telegramMessages].slice(0, 20);
-			say(telegramSaid(message));
-			void fetch('/api/telegram/leido', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ key: message.key })
-			}).catch(() => {});
-		};
-		return () => events.close();
-	});
-
 	function release() {
 		if (!micMode.tap) voice.stop();
 	}
@@ -418,7 +368,6 @@
 		mas: 'Más',
 		llamar: 'Llamar',
 		dj: 'DJ',
-		telegram: 'Telegram',
 		mensajes: 'Mensajes'
 	};
 	/**
@@ -434,13 +383,12 @@
 		mas: 'bg-zinc-800 text-zinc-100',
 		llamar: 'bg-green-700 text-white',
 		dj: 'bg-orange-600 text-white',
-		telegram: 'bg-sky-600 text-white',
 		mensajes: 'bg-emerald-600 text-white'
 	};
 	/**
 	 * Inicio's tiles: always these six, always in the same place, so the hand learns them. One with
-	 * nothing to show stays dimmed in its place, with why, and the others do not move. DJ and Telegram,
-	 * less used while driving, inside «Más».
+	 * nothing to show stays dimmed in its place, with why, and the others do not move. DJ, calls and
+	 * messages, less used while driving, inside «Más».
 	 */
 	const HOME: { id: Tab; off: string | null }[] = $derived([
 		{ id: 'radio', off: null },
@@ -456,7 +404,7 @@
 	]);
 	/** «←»: back to «Más» from what is inside it; to Inicio from the rest. */
 	const backTo = (t: Tab): Tab | null =>
-		t === 'dj' || t === 'telegram' || t === 'llamar' || t === 'mensajes' ? 'mas' : null;
+		t === 'dj' || t === 'llamar' || t === 'mensajes' ? 'mas' : null;
 	/** What plays, as a section: its colour and drawing on the bar when it has no cover. */
 	const playingTab: Tab = $derived(music.radio ? 'radio' : music.podcast ? 'podcasts' : 'musica');
 
@@ -1318,10 +1266,6 @@ home. -->
 				<!-- Two speech bubbles: the family's own messages (#551). -->
 				<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z" />
 				<path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1" />
-			{:else if id === 'telegram'}
-				<!-- A paper plane, as Telegram's. -->
-				<path d="M21 4 3 11l6 2 2 6 3-4 5 4z" />
-				<path d="m9 13 12-9" />
 			{:else if id === 'llamar'}
 				<!-- A handset. -->
 				<path
@@ -1948,38 +1892,6 @@ home. -->
 									<span class="block text-lg">{m.text}</span>
 								</div>
 							{/each}
-						{:else if tab === 'telegram'}
-							<button
-								class={[
-									tile,
-									'sm:col-span-2',
-									telegramOn ? 'border-sky-400 bg-sky-500/15' : 'border-zinc-50/10 bg-zinc-900'
-								]}
-								aria-pressed={telegramOn}
-								onclick={() => setTelegram(!telegramOn)}
-							>
-								<span class="text-3xl" aria-hidden="true">{telegramOn ? '🔊' : '🔇'}</span>
-								<span class="min-w-0">
-									<span class="block text-xl font-semibold"
-										>{telegramOn ? 'Leyendo los mensajes' : 'Leer los mensajes en voz alta'}</span
-									>
-									<span class="block text-base text-zinc-400"
-										>{telegramOn
-											? 'Cada uno se lee al llegar, con la música más baja'
-											: 'Los que te lleguen a Telegram mientras conduces'}</span
-									>
-								</span>
-							</button>
-							{#each telegramMessages as m (m.key)}
-								<div class="rounded-2xl border-2 border-zinc-50/10 bg-zinc-900 p-3 sm:col-span-2">
-									<span class="block text-base text-zinc-400"
-										>{m.chat ? `${m.from} · ${m.chat}` : m.from} · {new Date(
-											m.at
-										).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span
-									>
-									<span class="block text-lg">{m.text ?? telegramSaid(m)}</span>
-								</div>
-							{/each}
 						{:else if tab === 'dj'}
 							{@const setups = [
 								...(djLast ? [{ id: 'dj-ultima', name: 'La última', options: djLast }] : []),
@@ -2218,21 +2130,6 @@ home. -->
 										<span class="block text-base text-zinc-400"
 											>De la familia, cifrados: en voz alta y por voz</span
 										>
-									</span>
-								</button>
-							{/if}
-							{#if data.telegram}
-								<button
-									class={[tile, 'border-zinc-50/10 bg-zinc-900']}
-									onclick={() => (tab = 'telegram')}
-								>
-									<span
-										class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl {COLOURS.telegram}"
-										>{@render tabIcon('telegram', 'h-8 w-8')}</span
-									>
-									<span class="min-w-0">
-										<span class="block text-xl font-semibold">Telegram</span>
-										<span class="block text-base text-zinc-400">Mensajes leídos en voz alta</span>
 									</span>
 								</button>
 							{/if}

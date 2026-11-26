@@ -763,11 +763,6 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'dropped',
 		zip: false
 	},
-	telegram_bot: {
-		leaving: 'stays',
-		joining: 'dropped',
-		zip: false
-	},
 	invitation: {
 		leaving: 'stays',
 		joining: 'dropped',

@@ -38,15 +38,6 @@ import {
 	untrustThisDevice
 } from '#lib/server/kid-login.ts';
 import { auth } from '#lib/server/auth.ts';
-import {
-	botStatus,
-	forgetBot,
-	setBotChat,
-	setBotEvents,
-	setBotToken,
-	testBot
-} from '#lib/server/telegram/bot.ts';
-import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
 import { withFamily } from '#lib/server/family.ts';
 import {
 	adminsAndAdults,
@@ -245,7 +236,6 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 					all: await trustedDevices(k)
 				}
 			: null,
-		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
 		/** «Entrar con la nube» (#279): its houses' clients, and the cloud's address for their .env. */
 		houseClients: admin ? { clients: await houseClients(request.headers), origin: ORIGIN } : null,
 		/** Whether they can leave their family, or what stops it (#315). */
@@ -387,8 +377,6 @@ async function requireAdmin(userId: string, problem = 'houseProblem') {
 async function adminFamily(userId: string) {
 	return withFamily(userId, async (_, m) => (m.role === 'admin' ? m.familyId : null));
 }
-
-const notAdmin = () => fail(403, { botProblem: 'Solo quien administra la familia' });
 
 /** A place as Open-Meteo found it, back from the page: only what a place has. */
 function placeFrom(value: unknown): Place | null {
@@ -938,51 +926,6 @@ export const actions: Actions = {
 		const text = String((await request.formData()).get('style') ?? '');
 		await setPersonVoiceStyle(await kitchenOf(locals.user!.id), locals.user!.id, text);
 		return { saved: 'myStyle' };
-	},
-	/** The family's bot (#243): its token from @BotFather, checked with Telegram. */
-	botToken: async ({ request, locals }) => {
-		const familyId = await adminFamily(locals.user!.id);
-		if (!familyId) return notAdmin();
-		const token = String((await request.formData()).get('token') ?? '').trim();
-		if (!/^\d+:[\w-]{30,}$/.test(token))
-			return fail(400, { botProblem: 'El token es como 123456789:ABC…, el que da @BotFather' });
-		try {
-			await setBotToken(familyId, token);
-		} catch (err) {
-			return fail(400, { botProblem: err instanceof Error ? err.message : String(err) });
-		}
-		return { saved: 'bot' };
-	},
-	botForget: async ({ locals }) => {
-		const familyId = await adminFamily(locals.user!.id);
-		if (!familyId) return notAdmin();
-		await forgetBot(familyId);
-		return { saved: 'bot-out' };
-	},
-	/** The group it tells, among those it has been added to; and what it tells. */
-	botOptions: async ({ request, locals }) => {
-		const familyId = await adminFamily(locals.user!.id);
-		if (!familyId) return notAdmin();
-		const form = await request.formData();
-		const chat = Number(form.get('chat'));
-		if (chat) await setBotChat(familyId, chat);
-		await setBotEvents(
-			familyId,
-			parseBotEvents(
-				Object.fromEntries(Object.keys(BOT_EVENTS).map((k) => [k, form.get(k) === 'on']))
-			)
-		);
-		return { saved: 'bot-options' };
-	},
-	botTest: async ({ locals }) => {
-		const familyId = await adminFamily(locals.user!.id);
-		if (!familyId) return notAdmin();
-		try {
-			await testBot(familyId);
-		} catch (err) {
-			return fail(400, { botProblem: err instanceof Error ? err.message : String(err) });
-		}
-		return { saved: 'bot-test' };
 	},
 	/** Someone into the family, by an email with its link (invitations.ts). */
 	invite: async ({ request, locals }) => {

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { admin } from './admin.ts';
-import { familySettings, house, kidAccount, telegramBot } from './db/schema.ts';
+import { familySettings, house, kidAccount } from './db/schema.ts';
 import { asFamily } from './family.ts';
 import { checkKms, kmsOn, openFor, sealFor, sealedNow } from './family-secret.ts';
 
@@ -41,13 +41,12 @@ async function again(familyId: string, value: string | null) {
 }
 
 async function migrateFamily(familyId: string) {
-	const [settings, home, bot, kids] = await asFamily(familyId, (tx) =>
+	const [settings, home, kids] = await asFamily(familyId, (tx) =>
 		Promise.all([
 			tx
 				.select({ openrouterKey: familySettings.openrouterKey, orsKey: familySettings.orsKey })
 				.from(familySettings),
 			tx.select({ key: house.key }).from(house),
-			tx.select({ token: telegramBot.token }).from(telegramBot),
 			tx.select({ userId: kidAccount.userId, secret: kidAccount.secret }).from(kidAccount)
 		])
 	);
@@ -55,7 +54,6 @@ async function migrateFamily(familyId: string) {
 	const openrouterKey = await again(familyId, settings[0]?.openrouterKey ?? null);
 	const orsKey = await again(familyId, settings[0]?.orsKey ?? null);
 	const houseKey = await again(familyId, home[0]?.key ?? null);
-	const token = await again(familyId, bot[0]?.token ?? null);
 	const kidSecrets: { userId: string; secret: string }[] = [];
 	for (const kid of kids) {
 		const secret = await again(familyId, kid.secret);
@@ -65,12 +63,11 @@ async function migrateFamily(familyId: string) {
 		if (openrouterKey) await tx.update(familySettings).set({ openrouterKey });
 		if (orsKey) await tx.update(familySettings).set({ orsKey });
 		if (houseKey) await tx.update(house).set({ key: houseKey });
-		if (token) await tx.update(telegramBot).set({ token });
 		for (const kid of kidSecrets)
 			await tx
 				.update(kidAccount)
 				.set({ secret: kid.secret })
 				.where(eq(kidAccount.userId, kid.userId));
 	});
-	return [openrouterKey, orsKey, houseKey, token].filter(Boolean).length + kidSecrets.length;
+	return [openrouterKey, orsKey, houseKey].filter(Boolean).length + kidSecrets.length;
 }

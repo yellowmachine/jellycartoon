@@ -18,7 +18,6 @@
 	import LoQueSeGuarda from './LoQueSeGuarda.svelte';
 	import AlAbrir from './AlAbrir.svelte';
 	import Langua from './Langua.svelte';
-	import Telegram from './Telegram.svelte';
 	import MusicaEnApps from './MusicaEnApps.svelte';
 	import Dispositivo from './Dispositivo.svelte';
 	import Voz from './Voz.svelte';
@@ -54,7 +53,6 @@
 		intro: data.intro,
 		keepHistory: data.keepHistory,
 		langua: data.langua,
-		telegram: data.telegram,
 		musicApps: data.musicApps,
 		voice: Boolean(data.voice),
 		music: Boolean(data.music),
@@ -138,11 +136,9 @@
 
 		<ModoDj {data} {tab} />
 
-		{#if any('langua', 'telegram', 'musica-en-apps')}<h2 class={group}>Con otras apps</h2>{/if}
+		{#if any('langua', 'musica-en-apps')}<h2 class={group}>Con otras apps</h2>{/if}
 
 		<Langua {data} {form} {tab} />
-
-		<Telegram {data} {form} {tab} />
 
 		<MusicaEnApps {data} {form} {tab} />
 

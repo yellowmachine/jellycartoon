@@ -10,7 +10,7 @@ import { MAX_ITEM, MAX_NOTE, paperFor, type FridgeAuthor, type FridgeState } fro
 /**
  * The family's fridge (#253; jellycartoon's #131): its post-its and its shopping list. Every change
  * is told to the family's open pages (SSE, `watchFridge`), with the agenda's «Hoy» (agenda.ts). Not
- * yet to the phones (Web Push) nor to Telegram, as jellycartoon does.
+ * yet to the phones (Web Push), as jellycartoon does.
  */
 
 /** Who is writing, and in which family: a person, or the family's house (by its key). */

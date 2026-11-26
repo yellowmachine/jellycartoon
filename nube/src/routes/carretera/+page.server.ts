@@ -2,7 +2,7 @@ import { access } from 'node:fs/promises';
 import path from 'node:path';
 import type { PageServerLoad } from './$types';
 import { MAP_DIR } from '$app/env/private';
-import { askHouse, HouseProblem } from '#lib/server/house.ts';
+import { HouseProblem } from '#lib/server/house.ts';
 import { withFamily } from '#lib/server/family.ts';
 import { musicSources } from '#lib/server/music-source.ts';
 import { ownCatalog } from '#lib/server/own-music.ts';
@@ -24,16 +24,6 @@ const hasMap = () =>
 		() => true,
 		() => false
 	);
-
-/** Their own Telegram, the house's (#243): its messages read aloud here. */
-const telegramOn = (who: { id: string; email: string }) =>
-	askHouse<{ connected: boolean }>(who.id, who.email, '/telegram').then(
-		(t) => t.connected,
-		() => false
-	);
-
-/** With the music not the house's, it is not waited for longer than this. */
-const HOUSE_WAIT_MS = 1500;
 
 /**
  * The music of the family's own bucket (#534), when it is this person's source: its albums (the
@@ -90,7 +80,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			pass: null,
 			dj: false,
 			djPresets: [],
-			telegram: false,
 			problem: null,
 			info: null,
 			map,
@@ -126,25 +115,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		inProgress: lists.inProgress
 	};
 	if (own) {
-		const [music, telegram] = await Promise.all([
-			ownMusic(who.id),
-			sources.house
-				? Promise.race([
-						telegramOn(who),
-						new Promise<false>((done) => setTimeout(() => done(false), HOUSE_WAIT_MS))
-					])
-				: false
-		]);
-		return { ...music, pass: null, djPresets: [], telegram, problem: null, info, map, ...kept };
+		const music = await ownMusic(who.id);
+		return { ...music, pass: null, djPresets: [], problem: null, info, map, ...kept };
 	}
 	try {
-		const [albumList, playlistList, pass, dj, telegram] = await Promise.all([
+		const [albumList, playlistList, pass, dj] = await Promise.all([
 			albums(who),
 			playlists(who),
 			musicPass(who),
 			// Modo DJ, the house's, with this person's saved setups.
-			djInfo(who),
-			telegramOn(who)
+			djInfo(who)
 		]);
 		return {
 			albums: albumList,
@@ -152,7 +132,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			pass,
 			dj: dj.enabled,
 			djPresets: dj.presets,
-			telegram,
 			problem: null,
 			info,
 			map,
@@ -166,7 +145,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			pass: null,
 			dj: false,
 			djPresets: [],
-			telegram: false,
 			problem: error.message,
 			info,
 			map,

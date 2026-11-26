@@ -30,7 +30,6 @@ import { startAlarms } from '#lib/server/alarms/alarms.ts';
 import { startClosingSessionsOfGone } from '#lib/server/nube-members.ts';
 import { startWatchingSeilide } from '#lib/server/seilide-watch.ts';
 import { startSendingWatchLog } from '#lib/server/watch-log.ts';
-import { startTelegram } from '#lib/server/telegram/telegram.ts';
 import { cinemaRoot, musicRoot, videoEnabled } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
 
@@ -64,8 +63,6 @@ export const init: ServerInit = async () => {
 	startSendingWatchLog();
 	// Started without reaching Seilide: /login offers a restart once it answers (#279).
 	void startWatchingSeilide().catch((error) => log.error('nube', 'Al mirar Seilide', { error }));
-	// The Telegram accounts connected (#243), listened to again.
-	void startTelegram().catch((error) => log.error('telegram', 'Al arrancar', { error }));
 	// The cloud's keys made with the rate limit (#350): without it.
 	void freeCloudKeys().catch((error) =>
 		log.error('nube', 'Al quitar el límite a sus claves', { error })

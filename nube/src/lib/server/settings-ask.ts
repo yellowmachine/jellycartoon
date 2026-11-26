@@ -59,7 +59,7 @@ const system = (entries: Entry[], admin: boolean) =>
 		'Eres el buscador de Ajustes de Seilide, la app de la familia (agenda, alarmas, nevera, recetas, gastos, viajes, radio, voz). Alguien escribe lo que quiere hacer y tú eliges, con «open_settings», las secciones de Ajustes que lo hacen. Nunca inventes secciones: solo las de la lista.',
 		admin
 			? ''
-			: 'Quien pregunta no administra la familia: lo de administrar (la clave de IA, invitar, la voz de la casa, el bot de Telegram…) no está en su lista. Si pide algo de eso, ids vacío y dile que lo hace quien administra la familia.',
+			: 'Quien pregunta no administra la familia: lo de administrar (la clave de IA, invitar, la voz de la casa…) no está en su lista. Si pide algo de eso, ids vacío y dile que lo hace quien administra la familia.',
 		'Si lo que pide no es de Ajustes sino de otra parte de la app (apuntar un gasto, poner una alarma), ids vacío y dile dónde: «Eso se hace en Agenda → Alarmas».',
 		'Secciones (id: pestaña › título · palabras):',
 		...entries.map((e) => `- ${e.id}: ${TAB_LABELS[e.tab]} › ${e.title} · ${e.words}`)

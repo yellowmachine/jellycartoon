@@ -19,7 +19,6 @@ const kitchen = (familyId: string): Kitchen => ({
 });
 mock.module('#lib/server/db/index.ts', () => ({ db }));
 mock.module('#lib/server/inbox.ts', () => ({ tell: async () => {} }));
-mock.module('#lib/server/telegram/bot.ts', () => ({ tellGroup: async () => {} }));
 const { addEvent, agendaBetween, setEventDone } = await import('./agenda.ts');
 
 beforeAll(async () => {

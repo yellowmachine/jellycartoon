@@ -43,7 +43,7 @@ export interface HouseVoiceContext {
 	watching: string | null;
 	/** A satellite's timers, kept by the house; a phone's come in the request. */
 	timers: string[];
-	/** The house's own tools besides the usual (what each one watched, their Telegram). */
+	/** The house's own tools besides the usual (what each one watched). */
 	tools: VoiceTool[];
 }
 

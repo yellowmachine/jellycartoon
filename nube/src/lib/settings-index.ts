@@ -334,13 +334,6 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
-		id: 'telegram-bot',
-		tab: 'conexiones',
-		title: 'Bot de Telegram',
-		words: 'telegram grupo avisos bot botfather mensajes',
-		shown: onlyAdmin
-	},
-	{
 		id: 'salir-familia',
 		tab: 'cuenta',
 		title: 'Salir de la familia',

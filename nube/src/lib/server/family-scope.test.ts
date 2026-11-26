@@ -30,8 +30,7 @@ import {
 	paper,
 	paperEvent,
 	paperPerson,
-	pushSubscription,
-	telegramBot
+	pushSubscription
 } from './db/schema.ts';
 import { familyOnlyScope, familyScope, NoFamily } from './family-scope.ts';
 import { hashOf, houseKeyScope, newHouseKey } from './house-key-scope.ts';
@@ -390,7 +389,6 @@ describe('the agenda and the alarms (#253)', () => {
 				startDay: '2026-10-29'
 			});
 			await tx.insert(agendaLink).values({ familyId: 'A', token: 'secreto-a' });
-			await tx.insert(telegramBot).values({ familyId: 'A', token: 'cifrado' });
 			await tx.insert(pushSubscription).values({
 				familyId: 'A',
 				userId: 'ana',
@@ -402,14 +400,7 @@ describe('the agenda and the alarms (#253)', () => {
 	});
 
 	test('each family sees only its own', async () => {
-		for (const table of [
-			familyPerson,
-			calendarEvent,
-			alarm,
-			agendaLink,
-			pushSubscription,
-			telegramBot
-		]) {
+		for (const table of [familyPerson, calendarEvent, alarm, agendaLink, pushSubscription]) {
 			expect(await withFamily('berta', (tx) => tx.select().from(table))).toHaveLength(0);
 			expect(await withFamily('alberto', (tx) => tx.select().from(table))).toHaveLength(1);
 		}

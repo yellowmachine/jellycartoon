@@ -30,7 +30,8 @@ export const memory = pgTable(
 		because: text('because'),
 		/**
 		 * Where it came from, if not asked with «recuerda»: a rule's deduction, a Telegram message
-		 * kept from the «Buzón», or what was said to the voice (#331, phase 6).
+		 * kept from the «Buzón» (only those of before #553), or what was said to the voice (#331,
+		 * phase 6).
 		 */
 		source: text('source', { enum: ['regla', 'telegram', 'conversacion'] }),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
