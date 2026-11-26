@@ -4,7 +4,7 @@ import { kitchenOf } from '#lib/server/fridge.ts';
 import { openRouterKey } from '#lib/server/family-settings.ts';
 import { analyzeWish } from '#lib/server/wish-analysis.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
-import { addWrittenNote } from '#lib/server/notes.ts';
+import { addWebNote } from '#lib/server/notes.ts';
 import { subscribe, userPodcasts } from '#lib/server/podcasts/podcasts.ts';
 import { linkKinds } from '#lib/server/shared-link.ts';
 import { linkOrder } from '#lib/shared-link.ts';
@@ -125,12 +125,8 @@ export const actions: Actions = {
 			.replace(/\s+/g, ' ')
 			.trim()
 			.slice(0, 300);
-		await addWrittenNote(await kitchenOf(userId), userId, {
-			text: title ? `${title}\n${link}` : link,
-			photo: null,
-			shared: false
-		});
-		redirect(303, '/notas');
+		const { id, read } = await addWebNote(await kitchenOf(userId), userId, { link, title });
+		redirect(303, `/notas/${id}/leer${read ? '' : '?sin=1'}`);
 	},
 	wish: async ({ request, locals }) => {
 		const userId = locals.user!.id;
