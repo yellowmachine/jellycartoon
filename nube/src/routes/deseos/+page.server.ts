@@ -16,9 +16,12 @@ import {
 import { isKidAccount } from '#lib/server/kids.ts';
 import {
 	addWish,
+	boughtDayOf,
+	boughtMonths,
 	buyableWish,
 	buyWish,
 	deleteWish,
+	expenseTotals,
 	giveWish,
 	linkOf,
 	listWishes,
@@ -29,12 +32,52 @@ import {
 	updateWish
 } from '#lib/server/wishes.ts';
 
-/** Lista de deseos (#586): `?persona=`, one person's; `?tienda=`, one shop's. */
-export const load: PageServerLoad = async ({ locals }) => {
+/** «2026» or «2026-10». */
+const isPeriod = (v: string | null): v is string => !!v && /^\d{4}(-(0[1-9]|1[0-2]))?$/.test(v);
+const monthEnd = (month: string) => {
+	const [y, m] = month.split('-').map(Number) as [number, number];
+	return `${month}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
+};
+
+/**
+ * Lista de deseos (#586): `?persona=`, one person's; `?tienda=`, one shop's. Of the bought (#631),
+ * `?comprados=` a year or a month (this year, by default) or `?buscar=` words in any year; `?ya=`
+ * one bought, its month.
+ */
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const userId = locals.user!.id;
 	const kid = await isKidAccount(userId);
-	const { people, wishes } = await listWishes(await kitchenOf(userId), userId, kid);
-	return { kid, people, wishes, today: today() };
+	const k = await kitchenOf(userId);
+	const search = (url.searchParams.get('buscar') ?? '').trim().slice(0, 100) || null;
+	const asked = url.searchParams.get('comprados');
+	const ya = Number(url.searchParams.get('ya'));
+	const yaDay =
+		!search && !asked && Number.isInteger(ya) && ya > 0
+			? await boughtDayOf(k, userId, kid, ya)
+			: null;
+	const period = isPeriod(asked) ? asked : yaDay ? yaDay.slice(0, 7) : today().slice(0, 4);
+	const [from, to] = search
+		? [null, null]
+		: period.length === 4
+			? [`${period}-01-01`, `${period}-12-31`]
+			: [`${period}-01`, monthEnd(period)];
+	const [{ people, wishes }, months] = await Promise.all([
+		listWishes(k, userId, kid, { from, to, text: search }),
+		boughtMonths(k, userId, kid)
+	]);
+	// What was spent: not for a child, who has no Dinero.
+	const totals = kid
+		? {}
+		: await expenseTotals(k, [
+				...new Set(wishes.flatMap((w) => (w.bought?.expenseId ? [w.bought.expenseId] : [])))
+			]);
+	return {
+		kid,
+		people,
+		wishes,
+		today: today(),
+		bought: { period: search ? null : period, search, months, totals }
+	};
 };
 
 /** Wishes in one «Seleccionar», at most. */

@@ -246,7 +246,11 @@ async function medicationIn(k: Kitchen, userId: string, p: SummaryPeriod, now: D
 
 /** The wishes bought in the period, as they may see them: never the gifts for them. */
 async function wishesIn(k: Kitchen, userId: string, p: SummaryPeriod) {
-	const { people, wishes } = await listWishes(k, userId, false);
+	const { people, wishes } = await listWishes(k, userId, false, {
+		from: p.from,
+		to: p.to,
+		text: null
+	});
 	const names = new Map(people.map((x) => [x.id, x.name]));
 	const bought = wishes.flatMap((w) =>
 		w.bought && w.bought.on >= p.from && w.bought.on <= p.to

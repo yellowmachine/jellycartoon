@@ -1,6 +1,20 @@
-import { and, desc, eq, isNull, ne, or } from 'drizzle-orm';
+import {
+	and,
+	count,
+	desc,
+	eq,
+	gte,
+	inArray,
+	isNotNull,
+	isNull,
+	lte,
+	ne,
+	or,
+	sql
+} from 'drizzle-orm';
 import { agendaPeople, personOf } from '#lib/server/agenda/agenda.ts';
-import { familyPerson, user, wish } from '#lib/server/db/schema.ts';
+import { expense, familyPerson, user, wish } from '#lib/server/db/schema.ts';
+import { likeOf, plain, plainText } from '#lib/server/expenses/plain.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import type { Tool } from '#lib/server/openrouter.ts';
 import { FetchError, fetchPublic } from '#lib/server/public-fetch.ts';
@@ -365,12 +379,60 @@ async function viewer(k: Kitchen, userId: string, kid: boolean) {
 	return { people: kid ? all.filter((p) => p.me) : all, mine };
 }
 
-/** The family's wishes as the one looking may see them, the newest first. */
-export async function listWishes(k: Kitchen, userId: string, kid: boolean) {
+/**
+ * Of the bought ones, only these (#631): bought between two days (both included, either may be
+ * missing), with words in their title or shop. The rest are left out, so the page does not grow
+ * with the years.
+ */
+export interface BoughtOnly {
+	from: string | null;
+	to: string | null;
+	text: string | null;
+}
+
+const boughtMatches = (w: { title: string; shop: string; on: string }, only: BoughtOnly) =>
+	(!only.from || w.on >= only.from) &&
+	(!only.to || w.on <= only.to) &&
+	(!only.text || plainText(`${w.title} ${w.shop}`).includes(plainText(only.text)));
+
+/**
+ * The family's wishes as the one looking may see them, the newest first. With `only`, of the
+ * bought, those; the ones not bought, all (a gift for them, bought in secret, too: to them, not
+ * bought).
+ */
+export async function listWishes(
+	k: Kitchen,
+	userId: string,
+	kid: boolean,
+	only: BoughtOnly | null = null
+) {
 	const { people, mine } = await viewer(k, userId, kid);
 	const shown = new Set(people.map((p) => p.id));
+	const words = only?.text ? plain(likeOf(only.text)) : null;
 	const rows = await k.run((tx) =>
-		tx.select().from(wish).orderBy(desc(wish.createdAt), desc(wish.id))
+		tx
+			.select()
+			.from(wish)
+			.where(
+				only
+					? or(
+							isNull(wish.boughtOn),
+							// Their own, also bought: one by another looks to them as not bought.
+							mine ? eq(wish.personId, Number(mine)) : undefined,
+							and(
+								only.from ? gte(wish.boughtOn, only.from) : undefined,
+								only.to ? lte(wish.boughtOn, only.to) : undefined,
+								words
+									? or(
+											sql`${plain(wish.title)} like ${words}`,
+											sql`${plain(wish.shop)} like ${words}`
+										)
+									: undefined
+							) ?? sql`true`
+						)
+					: undefined
+			)
+			.orderBy(desc(wish.createdAt), desc(wish.id))
 	);
 	const names = new Map((await accountNames(k)).map((a) => [a.userId, a.name]));
 	const wishes: WishView[] = rows
@@ -410,7 +472,59 @@ export async function listWishes(k: Kitchen, userId: string, kid: boolean) {
 				people.find((p) => p.id === String(w.personId))
 			)
 		}));
-	return { people, wishes };
+	return {
+		people,
+		wishes: only
+			? wishes.filter(
+					(w) => !w.bought || boughtMatches({ title: w.title, shop: w.shop, on: w.bought.on }, only)
+				)
+			: wishes
+	};
+}
+
+/**
+ * How many were bought each month (#631), of those the one looking sees as bought: never a gift for
+ * them. The newest first: «2026-11».
+ */
+export async function boughtMonths(k: Kitchen, userId: string, kid: boolean) {
+	const mine = await personOf(k, userId);
+	const month = sql<string>`to_char(${wish.boughtOn}, 'YYYY-MM')`;
+	const rows = await k.run((tx) =>
+		tx
+			.select({ month, count: count() })
+			.from(wish)
+			.where(
+				and(
+					isNotNull(wish.boughtOn),
+					kid
+						? and(eq(wish.personId, Number(mine)), eq(wish.boughtBy, userId))
+						: mine
+							? or(ne(wish.personId, Number(mine)), eq(wish.boughtBy, userId))
+							: undefined
+				)
+			)
+			.groupBy(month)
+			.orderBy(desc(month))
+	);
+	return rows.map((r) => ({ month: r.month, count: Number(r.count) }));
+}
+
+/** The day a wish was bought, as the one looking sees it: null, not bought (to them). */
+export async function boughtDayOf(k: Kitchen, userId: string, kid: boolean, id: number) {
+	const { wishes } = await listWishes(k, userId, kid, { from: null, to: null, text: null });
+	return wishes.find((w) => w.id === id)?.bought?.on ?? null;
+}
+
+/** The totals of the expenses bought wishes are in, for what was spent. */
+export async function expenseTotals(k: Kitchen, ids: number[]) {
+	if (!ids.length) return {};
+	const rows = await k.run((tx) =>
+		tx
+			.select({ id: expense.id, total: expense.total })
+			.from(expense)
+			.where(inArray(expense.id, ids))
+	);
+	return Object.fromEntries(rows.map((r) => [r.id, r.total])) as Record<number, number>;
 }
 
 /** The family's people with an account: whose name a «Lo regalo yo» carries. */

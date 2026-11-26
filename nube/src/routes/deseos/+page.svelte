@@ -5,7 +5,8 @@
 	import { page } from '$app/state';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
-	import { monthOf } from 'comun/expenses.ts';
+	import { euros, MONTH_NAMES, monthOf } from 'comun/expenses.ts';
+	import { wishesOf } from '#lib/summary.ts';
 	import Juntos from './Juntos.svelte';
 	import Comprado from './Comprado.svelte';
 	import { field, primary, secondary, select } from '#lib/styles.ts';
@@ -66,15 +67,72 @@
 	/** Just said «Comprado»: told so, with its expense in Dinero if put in. */
 	let justBought = $state<{ expense: number | null; month: string } | null>(null);
 
-	/** This page with what is chosen now, but for what changes. */
-	const link = (change: { persona?: string | null; tienda?: string | null }) => {
-		const chosen = { persona: chosenPerson, tienda: chosenShop, ...change };
+	/** This page with what is chosen now, but for what changes; the bought ones' period too (#631). */
+	const link = (change: {
+		persona?: string | null;
+		tienda?: string | null;
+		comprados?: string | null;
+		buscar?: string | null;
+	}) => {
+		const chosen = {
+			persona: chosenPerson,
+			tienda: chosenShop,
+			comprados: page.url.searchParams.get('comprados'),
+			buscar: page.url.searchParams.get('buscar'),
+			...change
+		};
 		const params = new URLSearchParams();
-		if (chosen.persona) params.set('persona', chosen.persona);
-		if (chosen.tienda) params.set('tienda', chosen.tienda);
+		for (const [key, value] of Object.entries(chosen)) if (value) params.set(key, value);
 		const query = `${params}`;
 		return query ? `?${query}` : page.url.pathname;
 	};
+
+	/** The bought ones (#631): of a year or a month, or found by words in any. */
+	const period = $derived(data.bought.period);
+	const year = $derived(period?.slice(0, 4) ?? data.today.slice(0, 4));
+	const years = $derived(
+		[
+			...new Set([data.today.slice(0, 4), ...data.bought.months.map((m) => m.month.slice(0, 4))])
+		].sort()
+	);
+	const olderYear = $derived(years.filter((y) => y < year).at(-1) ?? null);
+	const newerYear = $derived(years.find((y) => y > year) ?? null);
+	const yearMonths = $derived(data.bought.months.filter((m) => m.month.startsWith(year)));
+	const monthName = (month: string) => MONTH_NAMES[Number(month.slice(5, 7)) - 1]!.toLowerCase();
+	const periodText = $derived(
+		!period ? '' : period.length === 4 ? `en ${period}` : `en ${monthName(period)} de ${year}`
+	);
+	/** Each expense in Dinero once, as the Resumen: several bought together are one. */
+	const spent = $derived(
+		data.kid
+			? null
+			: wishesOf(
+					bought.flatMap((w) =>
+						w.bought
+							? [
+									{
+										id: w.id,
+										title: w.title,
+										person: '',
+										shop: w.shop,
+										on: w.bought.on,
+										priceCents: w.priceCents,
+										shippingCents: w.shippingCents,
+										extraCents: w.extraCents,
+										currency: w.currency,
+										expenseId: w.bought.expenseId
+									}
+								]
+							: []
+					),
+					new Map(Object.entries(data.bought.totals).map(([id, t]) => [Number(id), t]))
+				)
+	);
+	const boughtOpen = $derived(
+		page.url.searchParams.has('comprados') ||
+			page.url.searchParams.has('buscar') ||
+			bought.some((w) => w.id === shownAlready)
+	);
 
 	const chip = (on: boolean) =>
 		`rounded-full px-3 py-1 text-sm ${on ? 'bg-amber-500 font-medium text-zinc-950' : 'bg-zinc-800 hover:bg-zinc-700'}`;
@@ -196,6 +254,11 @@
 			document.getElementById(`deseo-${shownAlready}`)?.scrollIntoView({ block: 'center' });
 	});
 </script>
+
+{#snippet keep()}
+	{#if chosenPerson}<input type="hidden" name="persona" value={chosenPerson} />{/if}
+	{#if chosenShop}<input type="hidden" name="tienda" value={chosenShop} />{/if}
+{/snippet}
 
 {#snippet act(what: string, label: string, list: PageProps['data']['wishes'])}
 	<form method="post" action="?/bulk" use:enhance={bulk}>
@@ -702,11 +765,71 @@
 	</div>
 {/if}
 
-{#if bought.length}
-	<details class="mt-8" open={bought.some((w) => w.id === shownAlready)}>
+{#if bought.length || data.bought.months.length || data.bought.search}
+	<!-- Choosing a year, a month or words stays here, at the end of the page. -->
+	<details class="mt-8" open={boughtOpen} data-sveltekit-noscroll>
 		<summary class="cursor-pointer font-semibold">
-			Comprados <span class="text-zinc-400">{bought.length}</span>
+			Comprados <span class="text-zinc-400">{period ? periodText : 'buscando'}</span>
 		</summary>
+		<div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+			{#if !data.bought.search}
+				<span class="flex items-center gap-1">
+					{#if olderYear}<a
+							href={link({ comprados: olderYear })}
+							class="rounded-md border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
+							aria-label="Año anterior, {olderYear}">‹</a
+						>{/if}
+					<span class="px-1 font-medium tabular-nums">{year}</span>
+					{#if newerYear}<a
+							href={link({ comprados: newerYear })}
+							class="rounded-md border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
+							aria-label="Año siguiente, {newerYear}">›</a
+						>{/if}
+				</span>
+				<form method="get">
+					{@render keep()}
+					<select
+						name="comprados"
+						aria-label="Mes"
+						class={select}
+						value={period}
+						onchange={(e) => e.currentTarget.form?.requestSubmit()}
+					>
+						<option value={year}>Todo el año</option>
+						{#each yearMonths as m (m.month)}
+							<option value={m.month}>{monthName(m.month)} ({m.count})</option>
+						{/each}
+					</select>
+				</form>
+			{/if}
+			<form method="get" class="flex min-w-48 flex-1 gap-2" role="search">
+				{@render keep()}
+				<input
+					type="search"
+					name="buscar"
+					value={data.bought.search ?? ''}
+					placeholder="Buscar en todos los años…"
+					aria-label="Buscar en los comprados: título o tienda"
+					class="{field} min-w-0 flex-1"
+				/>
+				<button class={secondary}>Buscar</button>
+			</form>
+			{#if data.bought.search}
+				<a href={link({ buscar: null })} class="text-amber-400 hover:underline"
+					>Quitar la búsqueda</a
+				>
+			{/if}
+		</div>
+		<p class="mt-2 text-sm text-zinc-400" role="status">
+			{bought.length === 1 ? '1 comprado' : `${bought.length} comprados`}{spent
+				? ` · ${euros(spent.total)}${spent.unknown ? ` (${spent.unknown} sin precio, no cuentan)` : ''}`
+				: ''}{data.bought.search ? ` con «${data.bought.search}»` : ''}
+		</p>
+		{#if !bought.length}
+			<p class="mt-2 text-sm text-zinc-400">
+				{data.bought.search ? 'Nada comprado con esas palabras.' : `Nada comprado ${periodText}.`}
+			</p>
+		{/if}
 		<ul class="mt-3 divide-y divide-zinc-800 rounded-lg border border-zinc-800">
 			{#each bought as w (w.id)}
 				{#if w.bought}

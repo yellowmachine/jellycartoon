@@ -134,6 +134,7 @@ const {
 	giveWish,
 	linkOf,
 	listWishes,
+	boughtMonths,
 	onlySiteName,
 	titleFromAddress,
 	titleFromShared,
@@ -1179,5 +1180,61 @@ describe('several bought together', () => {
 		expect(said([w('x', null), w('y', null)], 900)).toEqual(['x 0', 'y 0', 'Sin repartir 900']);
 		for (const total of [1, 2611, 5000])
 			expect(togetherLines([a, b], total).reduce((s, l) => s + l.amount, 0)).toBe(total);
+	});
+});
+
+describe('Comprados by year and month, and found by words (#631)', () => {
+	test('only the period asked, all the ones not bought, and never a gift for the one looking', async () => {
+		const add = async (k: Kitchen, userId: string, personId: number, title: string) => {
+			const done = await addWish(k, userId, false, personId, product(title), null);
+			if (!('added' in done)) throw new Error('Sin añadir');
+			return (await listWishes(k, userId, false)).wishes.find((w) => w.title === title)!.id;
+		};
+		await add(ana, 'ana', people.Ana!, 'Pendiente');
+		await buyWish(ana, 'ana', false, await add(ana, 'ana', people.Bebé!, 'Cuna'), '2026-10-03');
+		await buyWish(ana, 'ana', false, await add(ana, 'ana', people.Bebé!, 'Sonajero'), '2026-11-20');
+		await buyWish(ana, 'ana', false, await add(ana, 'ana', people.Bebé!, 'Trona'), '2025-12-24');
+		// Pepe gives Ana hers, in secret: to Ana, not bought, whatever the period.
+		const surprise = await add(ana, 'ana', people.Ana!, 'Sorpresa');
+		await giveWish(pepe, 'pepe', false, surprise, true);
+		expect(await buyWish(pepe, 'pepe', false, surprise, '2025-05-05')).toBe(true);
+
+		const of = async (k: Kitchen, userId: string, only: Parameters<typeof listWishes>[3]) =>
+			(await listWishes(k, userId, false, only)).wishes
+				.map((w) => `${w.title}${w.bought ? ` ${w.bought.on}` : ''}`)
+				.sort();
+		expect(await of(ana, 'ana', { from: '2026-01-01', to: '2026-12-31', text: null })).toEqual([
+			'Cuna 2026-10-03',
+			'Pendiente',
+			'Sonajero 2026-11-20',
+			'Sorpresa'
+		]);
+		expect(await of(ana, 'ana', { from: '2026-11-01', to: '2026-11-30', text: null })).toEqual([
+			'Pendiente',
+			'Sonajero 2026-11-20',
+			'Sorpresa'
+		]);
+		// Words, in any year; accents aside.
+		expect(await of(ana, 'ana', { from: null, to: null, text: 'TRÓNA' })).toEqual([
+			'Pendiente',
+			'Sorpresa',
+			'Trona 2025-12-24'
+		]);
+		// Pepe sees what he bought, in its year.
+		expect(await of(pepe, 'pepe', { from: '2025-01-01', to: '2025-12-31', text: null })).toContain(
+			'Sorpresa 2025-05-05'
+		);
+
+		expect(await boughtMonths(ana, 'ana', false)).toEqual([
+			{ month: '2026-11', count: 1 },
+			{ month: '2026-10', count: 1 },
+			{ month: '2025-12', count: 1 }
+		]);
+		expect(await boughtMonths(pepe, 'pepe', false)).toEqual([
+			{ month: '2026-11', count: 1 },
+			{ month: '2026-10', count: 1 },
+			{ month: '2025-12', count: 1 },
+			{ month: '2025-05', count: 1 }
+		]);
 	});
 });
