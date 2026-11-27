@@ -14,6 +14,7 @@ import {
 import { asFamily, withFamily } from '../family.ts';
 import type { AnyDb } from '../family-scope.ts';
 import type { Kitchen } from '../fridge.ts';
+import { satelliteKeyScope } from '../satellite-key-scope.ts';
 import { createHub, PlugOffline, type Hub } from './hub.ts';
 import { newPlugToken, plugKeyScope } from './plug-key-scope.ts';
 import { isSensorDevice, SWITCH_ID } from './shelly.ts';
@@ -48,6 +49,7 @@ const dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE });
 export const HUB_KEY = Symbol.for('seilide.enchufes');
 
 const plugOfToken = plugKeyScope(db);
+const satelliteOfKey = satelliteKeyScope(db);
 
 /** Who watches the plugs for their notices (notices.ts, loaded by hooks.server.ts); none, no one. */
 export interface PlugWatcher {
@@ -67,6 +69,7 @@ const watcher = () => watcherGlobals[WATCHER];
 function makeHub() {
 	return createHub({
 		plugOfToken,
+		satelliteFamilyOf: async (key) => (await satelliteOfKey(key))?.familyId ?? null,
 		async save(familyId, plugId, patch) {
 			const set: Partial<typeof plug.$inferInsert> = { lastSeenAt: new Date() };
 			if (patch.output !== undefined) set.output = patch.output;
@@ -217,6 +220,7 @@ async function readPlugs(tx: AnyDb, withIp: boolean): Promise<PlugView[]> {
 			name: p.name,
 			kind: p.kind,
 			online: now.online,
+			relayed: now.online && now.relayed,
 			waiting: p.lastSeenAt === null && !now.online,
 			reconnecting: !now.online && p.lastSeenAt !== null && hub.reconnecting(p.id),
 			output: now.online ? now.output : p.output,

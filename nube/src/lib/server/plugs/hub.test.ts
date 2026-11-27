@@ -186,6 +186,7 @@ function setup(plugs: Record<string, KeyPlug> = { tok: LAMP }) {
 	let clock = new Date('2026-11-07T17:56:00Z');
 	const deps: HubDeps = {
 		plugOfToken: async (t) => plugs[t] ?? null,
+		satelliteFamilyOf: async (key) => ({ 'clave-A': 'A', 'clave-B': 'B' })[key] ?? null,
 		save: async (_f, plugId, patch) => void saved.push({ plugId, patch }),
 		addEnergy: async (_f, plugId, hour, wh) => void energy.push({ plugId, hour, wh }),
 		addReading: async (_f, plugId, at, reading) => void readings.push({ plugId, at, reading }),
@@ -205,6 +206,22 @@ function setup(plugs: Record<string, KeyPlug> = { tok: LAMP }) {
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 describe('hub', () => {
+	test("through a satellite of its family (#643), it says so; another family's, or none, not", async () => {
+		for (const [key, relayed] of [
+			['clave-A', true],
+			['clave-B', false],
+			['otra', false],
+			[null, false]
+		] as const) {
+			const { hub } = setup();
+			const ws = new FakePlug();
+			await hub.attach('tok', ws, key);
+			expect(hub.liveOf('p1')).toMatchObject({ online: true, relayed });
+			ws.close();
+			expect(hub.liveOf('p1')).toMatchObject({ online: false, relayed: false });
+		}
+	});
+
 	test('a sensor: each new reading kept whole, the same one again not', async () => {
 		const { hub, readings, setClock } = setup();
 		const ws = new FakePlug();
@@ -265,7 +282,13 @@ describe('hub', () => {
 		ws.say(FULL);
 		await attaching;
 		await tick();
-		expect(hub.liveOf('p1')).toEqual({ online: true, output: false, power: 0, timerUntil: null });
+		expect(hub.liveOf('p1')).toEqual({
+			online: true,
+			output: false,
+			power: 0,
+			timerUntil: null,
+			relayed: false
+		});
 		expect(saved.some((s) => s.patch.output === false && s.patch.energyWh === 10)).toBe(true);
 	});
 
@@ -337,7 +360,13 @@ describe('hub', () => {
 		ws.say(status({ output: true, source: 'WS_out' }));
 		ws.say(status({ apower: 5.0 }));
 		await tick();
-		expect(hub.liveOf('p1')).toEqual({ online: true, output: true, power: 5, timerUntil: null });
+		expect(hub.liveOf('p1')).toEqual({
+			online: true,
+			output: true,
+			power: 5,
+			timerUntil: null,
+			relayed: false
+		});
 		expect(saved).toEqual([{ plugId: 'p1', patch: { output: true, power: undefined } }]);
 
 		setClock('2026-11-07T17:58:00Z');

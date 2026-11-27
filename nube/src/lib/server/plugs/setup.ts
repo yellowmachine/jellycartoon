@@ -1,7 +1,8 @@
-import { isNotNull } from 'drizzle-orm';
+import { eq, isNotNull } from 'drizzle-orm';
 import { plug } from '../db/schema.ts';
 import { withFamily } from '../family.ts';
 import { familySatellites, nudgeSatellite } from '../satellites.ts';
+import { newPlugToken } from './plug-key-scope.ts';
 import { createPlug, deletePlug } from './plugs.ts';
 import { createSatelliteTasks, SatelliteSilent, type SatelliteTasks } from './satellite-tasks.ts';
 import { PLUG_PATH, plugAddress, type FoundPlugView, type PlugKind } from '#lib/plugs.ts';
@@ -93,5 +94,51 @@ export async function addFoundPlug(
 	}
 	if (!problem) return { id };
 	await deletePlug(userId, id);
+	return { problem };
+}
+
+/**
+ * A plug that comes straight to Seilide, pointed at a satellite instead (#643), which then lets down
+ * only what it allows. With a new address, so that the old one, which went straight, no longer
+ * works; the old one back if no satellite could. Each of the family's satellites is tried: it only
+ * touches the plug if it finds that same Shelly at its IP.
+ */
+export async function moveToSatellite(
+	userId: string,
+	origin: string,
+	plugId: string
+): Promise<{ ok: true } | { problem: string }> {
+	const [row] = await withFamily(userId, (tx) =>
+		tx
+			.select({ deviceId: plug.deviceId, ip: plug.ip, hash: plug.hash })
+			.from(plug)
+			.where(eq(plug.id, plugId))
+	);
+	if (!row) return { problem: 'Ese enchufe ya no está' };
+	if (!row.deviceId || !row.ip)
+		return { problem: 'Seilide aún no sabe dónde está en la wifi: espera a que se conecte' };
+	const satellites = await satellitesOf(userId);
+	if (!satellites.length) return { problem: 'Hace falta un satélite de voz en casa' };
+
+	const made = newPlugToken();
+	const setHash = (hash: string) =>
+		withFamily(userId, (tx) => tx.update(plug).set({ hash }).where(eq(plug.id, plugId)));
+	await setHash(made.hash);
+	let problem = 'El satélite no contesta: puede que esté apagado o sin actualizar';
+	for (const satellite of satellites) {
+		try {
+			const done = await tasks.ask(satellite.id, {
+				kind: 'configurar',
+				ip: row.ip,
+				deviceId: row.deviceId,
+				server: plugAddress(origin, made.token)
+			});
+			if (!done.problem) return { ok: true };
+			problem = done.problem;
+		} catch (e) {
+			if (!(e instanceof SatelliteSilent)) throw e;
+		}
+	}
+	await setHash(row.hash);
 	return { problem };
 }

@@ -224,6 +224,41 @@
 						</form>
 					{/if}
 				</div>
+				{#if p.online && !p.relayed}
+					<!-- Straight to Seilide (#643): whoever broke into it could do anything with the plug. -->
+					<div class="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm">
+						<p class="text-amber-200">Va directo a Seilide, sin pasar por un satélite de casa.</p>
+						{#if data.satellites}
+							<form
+								method="post"
+								action="?/toSatellite"
+								use:enhance={() => {
+									busy = p.id;
+									return async ({ update }) => {
+										await update();
+										busy = null;
+									};
+								}}
+								class="mt-2"
+							>
+								<input type="hidden" name="id" value={p.id} />
+								<button disabled={busy === p.id} class="text-amber-400 hover:text-amber-300"
+									>{busy === p.id ? 'Pasando…' : 'Pasar al satélite'}</button
+								>
+							</form>
+						{:else}
+							<p class="mt-1 text-zinc-400">Hace falta un satélite de voz en casa.</p>
+						{/if}
+						{#if form && 'moveProblem' in form && form.moveProblem === p.id}
+							<p class="mt-2 text-red-300">{form.problem}</p>
+						{/if}
+					</div>
+				{/if}
+				{#if form && 'moved' in form && form.moved === p.id && !p.relayed}
+					<p class="mt-3 text-sm text-emerald-300">
+						✓ Hecho: se reinicia y vuelve a conectarse por el satélite en unos segundos.
+					</p>
+				{/if}
 				{#if canTime(p)}
 					<!-- Its timer (#396): the plug's own, so it happens without Seilide. -->
 					<form

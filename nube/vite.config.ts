@@ -20,10 +20,16 @@ function plugSockets(): Plugin {
 				const token = req.url?.match(PLUG_URL)?.[1];
 				if (!token) return;
 				const hub = (
-					globalThis as Record<symbol, { attach(t: string, ws: unknown): void } | undefined>
+					globalThis as Record<
+						symbol,
+						{ attach(t: string, ws: unknown, key: string | null): void } | undefined
+					>
 				)[HUB_KEY];
 				if (!hub) return socket.destroy();
-				plugs.handleUpgrade(req, socket, head, (ws) => void hub.attach(token, ws));
+				plugs.handleUpgrade(req, socket, head, (ws) => {
+					const key = req.headers['x-api-key'];
+					void hub.attach(token, ws, typeof key === 'string' ? key : null);
+				});
 			});
 		}
 	};

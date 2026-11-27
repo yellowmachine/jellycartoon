@@ -52,6 +52,7 @@ Se actualiza solo: WUD mira cada noche (a las 4:30, `UPDATE_CRON`) si hay versi�
 | `WAKE_SILENCE_MS`          | `800`               | Cuánto silencio, en milisegundos, da la orden por acabada. Más corto contesta antes, pero corta a quien hace una pausa.                                                                                                    |
 | `WAKE_EARLY_MS`            | `300`               | Con este silencio manda ya lo dicho a oír, sin esperar al final, y contesta antes; `0`, no.                                                                                                                                |
 | `BARGE_IN`                 | `0`                 | `1`: también oye la palabra mientras piensa o contesta, y le corta para oír la nueva orden (#373). Solo con un micrófono que cancele el eco (un reSpeaker XVF3800, con el altavoz en su salida): si no, se oye a sí mismo. |
+| `PLUG_PORT`                | `8790`              | El puerto donde se conectan los enchufes Shelly ([por el satélite](#los-enchufes-por-el-satélite)). En la red de casa; no se publica fuera.                                                                                |
 | `TZ`                       | `Europe/Madrid`     | Su hora.                                                                                                                                                                                                                   |
 | `COMPOSE_PROFILES`         | (vacío)             | `dns` en uno solo de los satélites: el [DNS de la casa](#el-dns-de-la-casa-adguard-home).                                                                                                                                  |
 | `WUD_PASSWORD`             | (obligatoria)       | La de WUD, que lo actualiza: `openssl rand -hex 16`.                                                                                                                                                                       |
@@ -80,6 +81,32 @@ Se le dice al momento, sin tocar la Raspberry; vacío, sin música.
 Suena por el mismo altavoz que la voz (`SPEAKER`), o por otro con `SNAPCLIENT_SOUNDCARD`. Si
 la Raspberry tenía el `snapclient` de Debian, se quita, para que no suene dos veces:
 `sudo systemctl disable --now snapclient`.
+
+## Los enchufes, por el satélite
+
+Los enchufes Shelly no se conectan a Seilide, sino al satélite (#643): su WebSocket de salida apunta
+a `ws://<IP-del-satélite>:8790/enchufe/<su-clave>`. El satélite abre otro a Seilide por cada enchufe:
+lo que dice el enchufe sube tal cual, y de lo que Seilide le pide al enchufe solo baja una lista
+cerrada (`satellite/src/relay.ts`):
+
+- leer: `Shelly.GetDeviceInfo`, `Wifi.GetStatus`, `Switch.GetStatus`, `Sys.GetConfig`, `Schedule.List`;
+- encender y apagar: `Switch.Set`, con temporizador de hasta un día;
+- sus horarios: `Schedule.Create` solo con `Switch.Set` dentro, y `Schedule.Delete`;
+- su zona horaria (`Sys.SetConfig` con `location.tz` y nada más);
+- dejar de conectarse al quitarlo (`Ws.SetConfig` con `enable: false`) y reiniciarse.
+
+Lo demás (scripts, configuración, otra dirección, contraseña, actualizaciones) no baja: el satélite
+contesta a Seilide con un error 403 y lo anota en su registro. Así, si alguien entrara en Seilide,
+podría encender y apagar, pero no meter un script en el enchufe ni llevárselo a otro servidor.
+Shelly no pide contraseña en su WebSocket de salida, por eso la lista es lo que lo protege.
+
+Al darlo de alta (**Enchufes → Buscar enchufes → Añadir**), el satélite le pone también una
+contraseña suya, para que nadie más en la wifi lo cambie desde su página. Se guarda solo en el
+satélite (`/data/enchufes.json`, en su volumen) y no se manda a Seilide. Los enchufes que ya iban
+directos a Seilide lo dicen en su tarjeta, con **Pasar al satélite**.
+
+El satélite tiene que estar en la misma red que los enchufes. Conviene darle una IP fija (una reserva
+en el router), porque los enchufes guardan esa IP.
 
 ## El DNS de la casa (AdGuard Home)
 

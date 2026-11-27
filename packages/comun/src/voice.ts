@@ -46,8 +46,13 @@ export interface FoundPlug {
 	ip: string;
 	/** With a password, the satellite cannot set it up. */
 	auth: boolean;
-	/** Where its outbound WebSocket points now, if on. */
+	/**
+	 * Where its outbound WebSocket points now, if on. Through a satellite (#643), its Seilide address
+	 * as if it pointed there.
+	 */
 	server: string | null;
+	/** Pointed at a satellite (#643), which takes it on to Seilide. */
+	relayed?: boolean;
 }
 
 export interface PlugTaskResult {

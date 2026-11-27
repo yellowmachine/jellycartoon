@@ -38,10 +38,17 @@ export interface PlugLive {
 	power: number | null;
 	/** When its timer switches it back, in ms (Switch.Set's toggle_after); null, none. */
 	timerUntil: number | null;
+	/**
+	 * Through one of the family's satellites (#643), which lets down only what it allows; not, it
+	 * comes straight to Seilide, which can do anything with it.
+	 */
+	relayed: boolean;
 }
 
 export interface HubDeps {
 	plugOfToken(token: string): Promise<KeyPlug | null>;
+	/** The family of a satellite's key (#643): a plug that comes through it says it; null, none. */
+	satelliteFamilyOf?(key: string): Promise<string | null>;
 	/** Saved on the plug, with when it was heard. */
 	save(
 		familyId: string,
@@ -139,7 +146,15 @@ export function createHub(deps: HubDeps) {
 	}
 
 	function liveOf(plugId: string): PlugLive {
-		return live.get(plugId) ?? { online: false, output: null, power: null, timerUntil: null };
+		return (
+			live.get(plugId) ?? {
+				online: false,
+				output: null,
+				power: null,
+				timerUntil: null,
+				relayed: false
+			}
+		);
 	}
 
 	/**
@@ -156,7 +171,8 @@ export function createHub(deps: HubDeps) {
 			power: sw.power ?? before.power,
 			// The whole state says all its timer; a change only when it starts one, so a switch
 			// without one is asked (it may have ended or been cancelled).
-			timerUntil: sw.timerUntil ?? (full ? null : before.timerUntil)
+			timerUntil: sw.timerUntil ?? (full ? null : before.timerUntil),
+			relayed: before.relayed
 		};
 		live.set(c.plug.id, after);
 		if (switched && !full && sw.timerUntil === undefined) void readTimer(c.plug.id);
@@ -231,7 +247,13 @@ export function createHub(deps: HubDeps) {
 		c.pending.clear();
 		if (connections.get(c.plug.id) !== c) return;
 		connections.delete(c.plug.id);
-		live.set(c.plug.id, { ...liveOf(c.plug.id), online: false, power: null, timerUntil: null });
+		live.set(c.plug.id, {
+			...liveOf(c.plug.id),
+			online: false,
+			power: null,
+			timerUntil: null,
+			relayed: false
+		});
 		tell(c.plug.familyId);
 		deps.onGone?.(c.plug.familyId, c.plug.id);
 	}
@@ -267,10 +289,11 @@ export function createHub(deps: HubDeps) {
 	}
 
 	/**
-	 * A plug that has just connected, with the token from its address. What it says while its token
-	 * is looked up (its whole state comes at once) is kept and read after.
+	 * A plug that has just connected, with the token from its address, and the satellite's key if it
+	 * comes through one (#643). What it says while its token is looked up (its whole state comes at
+	 * once) is kept and read after.
 	 */
-	async function attach(token: string, ws: PlugSocket) {
+	async function attach(token: string, ws: PlugSocket, satelliteKey?: string | null) {
 		const early: string[] = [];
 		let c: Connection | null = null;
 		let closed = false;
@@ -292,6 +315,14 @@ export function createHub(deps: HubDeps) {
 		}
 		if (closed) return;
 		if (!plug) return ws.close(UNKNOWN_TOKEN, 'Enchufe desconocido');
+		let relayed = false;
+		if (satelliteKey && deps.satelliteFamilyOf)
+			try {
+				relayed = (await deps.satelliteFamilyOf(satelliteKey)) === plug.familyId;
+			} catch (e) {
+				log('no se pudo buscar el satélite', e);
+			}
+		if (closed) return;
 
 		connections.get(plug.id)?.ws.close(REPLACED, 'Otra conexión');
 		c = {
@@ -306,7 +337,7 @@ export function createHub(deps: HubDeps) {
 			reading: null
 		};
 		connections.set(plug.id, c);
-		live.set(plug.id, { ...liveOf(plug.id), online: true });
+		live.set(plug.id, { ...liveOf(plug.id), online: true, relayed });
 		tell(plug.familyId);
 		for (const text of early) onMessage(c, text);
 		deps.onConnect?.(plug.familyId, plug.id);

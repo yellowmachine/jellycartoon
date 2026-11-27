@@ -19,5 +19,12 @@ server.on('upgrade', (req, socket, head) => {
 	const token = req.url?.match(PLUG_URL)?.[1];
 	const hub = globalThis[HUB_KEY];
 	if (!token || !hub) return socket.destroy();
-	plugs.handleUpgrade(req, socket, head, (ws) => void hub.attach(token, ws));
+	// Through a satellite (#643), its key: the hub knows the plug comes through it.
+	const key = req.headers['x-api-key'];
+	plugs.handleUpgrade(
+		req,
+		socket,
+		head,
+		(ws) => void hub.attach(token, ws, typeof key === 'string' ? key : null)
+	);
 });
