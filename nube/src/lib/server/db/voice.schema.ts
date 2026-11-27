@@ -72,6 +72,13 @@ export const voiceSatellite = pgTable(
 		 * word. Off: with a TV in the room it would take the TV's words for orders.
 		 */
 		conversation: boolean('conversation').notNull().default(false),
+		/**
+		 * The languages it is spoken to in (#647, satellite-language.ts): one, given to the speech
+		 * to text; several, found out.
+		 */
+		languages: jsonb('languages').$type<string[]>().notNull().default(['es']),
+		/** The one it answers in, among them; `auto`, as it is spoken to. */
+		answerLanguage: text('answer_language').notNull().default('es'),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
 		lastSeenAt: timestamp('last_seen_at')
 	},

@@ -3,7 +3,8 @@ import type { RequestHandler } from './$types';
 import { openRouterKey } from '#lib/server/family-settings.ts';
 import { audioFormat, sayableError, transcribe } from '#lib/server/openrouter.ts';
 import { familyHasHouse, HouseProblem, sendHouse } from '#lib/server/house.ts';
-import { satelliteRequest } from '#lib/server/satellites.ts';
+import { languagesOf, satelliteRequest } from '#lib/server/satellites.ts';
+import { hearingLanguage } from '#lib/satellite-language.ts';
 import { familyWords, heardPath } from '#lib/server/voice/heard-words.ts';
 import { hearsByHouse } from '#lib/server/voice/settings.ts';
 
@@ -24,13 +25,15 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (audio.byteLength > MAX_BYTES) error(413, 'Demasiado largo');
 	const format = audioFormat(request.headers.get('content-type') ?? 'audio/wav');
 	if (!format) error(415, 'Ese audio no se puede leer');
+	// In its language, if it is spoken to in only one (#647); else found out.
+	const language = hearingLanguage((await languagesOf(k, satellite.id)).heard);
 	// Not by the house when the family chose OpenRouter always (Ajustes, «Quién oye lo que se dice»).
 	if ((await familyHasHouse(k.familyId)) && (await hearsByHouse(k)))
 		try {
 			const started = performance.now();
 			const heard = await sendHouse<{ text: string }>(
 				k.familyId,
-				heardPath(await familyWords(k)),
+				heardPath(await familyWords(k), language),
 				{ method: 'POST', body: audio, type: 'audio/wav' },
 				30_000
 			);
@@ -50,7 +53,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!apiKey) error(503, 'La familia no tiene clave de IA: ponla en Ajustes de Seilide');
 	try {
 		const started = performance.now();
-		const text = await transcribe({ apiKey, audio, format });
+		const text = await transcribe({ apiKey, audio, format, language });
 		console.info(`[voz] ${satellite.name}: oído en ${Math.round(performance.now() - started)} ms`, {
 			familyId: k.familyId
 		});

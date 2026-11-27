@@ -3,6 +3,7 @@
 	import { field, primary, secondary, section } from '#lib/styles.ts';
 	import type { PageData, ActionData } from './$types';
 	import VozSatelites from './VozSatelites.svelte';
+	import { LANGUAGE_NAMES, SATELLITE_LANGUAGES } from '#lib/satellite-language.ts';
 
 	/**
 	 * Los satélites de voz que sirve Seilide (#296): una Raspberry en una habitación, con su clave,
@@ -99,6 +100,56 @@
 									una voz tan fuerte como la tuya, pero podría colarse.
 								</span>
 							</label>
+						</form>
+						<!-- #647: saved as soon as it is touched; with one language, it answers in that one. -->
+						<form
+							method="post"
+							action="?seccion={tab}&/saveSatelliteLanguages"
+							use:enhance={() =>
+								async ({ update }) =>
+									update({ reset: false })}
+							class="flex flex-col gap-1 text-xs text-zinc-400"
+						>
+							<input type="hidden" name="id" value={s.id} />
+							<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+								Le hablan en
+								{#each SATELLITE_LANGUAGES as l (l)}
+									<label class="flex items-center gap-1">
+										<input
+											type="checkbox"
+											name="language"
+											value={l}
+											checked={s.languages.includes(l)}
+											onchange={(e) => e.currentTarget.form?.requestSubmit()}
+											class="accent-amber-500"
+										/>
+										{LANGUAGE_NAMES[l]}
+									</label>
+								{/each}
+							</div>
+							{#if s.languages.length > 1}
+								<label class="flex flex-wrap items-center gap-2">
+									Contesta en
+									<select
+										name="answer"
+										value={s.answerLanguage}
+										onchange={(e) => e.currentTarget.form?.requestSubmit()}
+										class="{field} py-1 text-xs"
+									>
+										<option value="auto">Como le hablen</option>
+										{#each s.languages as l (l)}
+											<option value={l}>{LANGUAGE_NAMES[l]}</option>
+										{/each}
+									</select>
+								</label>
+								<span class="text-zinc-500">
+									Con varios idiomas, el reconocimiento adivina cuál es: una orden corta («pon
+									Friends») puede salir en otro. Con uno solo, oye mejor.
+								</span>
+							{:else}
+								<input type="hidden" name="answer" value={s.languages[0]} />
+								<span class="text-zinc-500">Contesta en {LANGUAGE_NAMES[s.languages[0]]}.</span>
+							{/if}
 						</form>
 					</li>
 				{/each}

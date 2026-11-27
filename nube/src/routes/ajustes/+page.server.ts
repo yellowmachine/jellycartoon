@@ -89,6 +89,7 @@ import {
 	MAX_SATELLITE_NAME,
 	satellitesChanged,
 	setConversation,
+	setLanguages,
 	setSnapserver
 } from '#lib/server/satellites.ts';
 import { parseSnapserver } from '#lib/snapserver.ts';
@@ -1233,6 +1234,19 @@ export const actions: Actions = {
 			form.get('conversation') === 'on'
 		);
 		return { saved: 'conversation' };
+	},
+	/** The languages it is spoken to in, and the one it answers in (#647). */
+	saveSatelliteLanguages: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		await setLanguages(
+			locals.user!.id,
+			String(form.get('id') ?? ''),
+			form.getAll('language'),
+			form.get('answer')
+		);
+		return { saved: 'satelliteLanguages' };
 	},
 	deleteSatellite: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');

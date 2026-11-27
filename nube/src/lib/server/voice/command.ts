@@ -124,6 +124,8 @@ import {
 	translateRule
 } from '#lib/server/rules.ts';
 import { doseText } from 'comun/medication.ts';
+import { languagesOf } from '#lib/server/satellites.ts';
+import { saidIn, type AnswerLanguage } from '#lib/satellite-language.ts';
 import { dosesFor, listMedication, markDose } from '#lib/server/medication.ts';
 import { MAX_RULE, ruleSaid } from '#lib/rules.ts';
 import { localDay, localTime } from 'comun/agenda.ts';
@@ -842,7 +844,7 @@ function tools(house: boolean, rooms: Room[], salon: boolean, clipMinutes: numbe
  * for an answer, said by the model rather than guessed from a «?» (a question first and then more
  * words, or none at all).
  */
-const answerTool: Tool = {
+const answerToolIn = (language: AnswerLanguage): Tool => ({
 	type: 'function',
 	function: {
 		name: 'answer',
@@ -853,7 +855,7 @@ const answerTool: Tool = {
 			properties: {
 				text: {
 					type: 'string',
-					description: 'Una sola frase corta, en español, sin listas, emojis, ids ni formato.'
+					description: `Una sola frase corta, ${saidIn(language)}, sin listas, emojis, ids ni formato.`
 				},
 				expects_answer: {
 					type: 'boolean',
@@ -865,7 +867,7 @@ const answerTool: Tool = {
 			additionalProperties: false
 		}
 	}
-};
+});
 
 /**
  * Said with the calls it goes with, when what it does is by something learned there: so a
@@ -1155,6 +1157,8 @@ function instructions(context: {
 	style: string | null;
 	/** «Aprender de lo que se habla» (#331): what is told in passing is learned afterwards. */
 	learns: boolean;
+	/** What it answers in (#647): a satellite's, Spanish everywhere else. */
+	language: AnswerLanguage;
 }) {
 	const {
 		library,
@@ -1166,7 +1170,8 @@ function instructions(context: {
 		recipes,
 		sites,
 		style,
-		learns
+		learns,
+		language
 	} = context;
 
 	return `Eres el asistente de voz de JellyCartoon, la app de música y vídeo de una casa. Te hablan desde el móvil, a veces una persona mayor, a veces alguien con las manos ocupadas (cocinando, por ejemplo); lo que dice viene de un reconocimiento de voz y puede traer nombres mal escritos: busca por cómo suenan. Con una tele o una radio de fondo pueden colarse frases sueltas de ella, en medio o al final: haz caso solo a lo que tiene sentido como orden o pregunta para ti e ignora lo demás.
@@ -1179,7 +1184,7 @@ Cómo responder:
 - Nunca digas que has hecho algo («lo anoto», «lo guardo», «te lo recuerdo», «pongo…») si no lo has hecho con su herramienta en esta orden.
 - El reconocimiento de voz a veces quita los «¿?»: si suena a pregunta («tengo algún viaje mañana», «hay leche»), es una pregunta; contéstala, no la guardes.
 - El reconocimiento de voz a veces escribe otra frase que suena igual o casi: si lo que llega no tiene sentido como orden, o se refiere a algo que no se ha dicho, piensa qué frase suena así y haz esa. «Dímela ahora» es «dime la hora»; «¿qué haces?», dicho de madrugada, seguramente «¿qué hora es?». Si dudas entre dos, haz la más probable y dila en tu respuesta («Son las cuatro y cuatro»): si no era eso, lo dirá.
-- Al terminar una orden, contesta con «answer»: en español, una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
+- Al terminar una orden, contesta con «answer»: ${saidIn(language)}, una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
 - Si no está claro qué pide y no son pocas opciones que nombrar («media hora», sin más), pregúntalo con «answer» y «expects_answer»: su respuesta llega como la orden siguiente.
 - Si lo encuentras con otro nombre porque se oyó mal («Boyman Rhapsody» es «Bohemian Rhapsody»), no lo expliques: di solo lo que pones, con su nombre bien («Pongo Bohemian Rhapsody de Queen en toda la casa»). Cada palabra de más se tarda en decir.
 - Lo que te han pedido recordar viene en el mensaje, con su número; para «¿dónde está…?», «¿cuál era…?», contesta con eso, y si no está, mira «list_memories» antes de decir que no lo sabes. Nunca lo inventes.
@@ -2425,7 +2430,8 @@ export async function runVoiceCommand(
 		plugs,
 		callable,
 		companion,
-		musicFrom
+		musicFrom,
+		language
 	] = await Promise.all([
 		openRouterKey(k),
 		voiceSettings(k),
@@ -2444,7 +2450,14 @@ export async function runVoiceCommand(
 		// «Compañía» (#469): «me voy» and «ya estoy aquí», said to a satellite.
 		satellite ? companionOn(k) : false,
 		// Where their music comes from (#534, phase 3): a satellite, the house's.
-		satellite ? 'casa' : musicSourceOf(k).catch(() => 'casa' as const)
+		satellite ? 'casa' : musicSourceOf(k).catch(() => 'casa' as const),
+		// What it answers in (#647): a satellite's, as Ajustes says; Spanish everywhere else.
+		satellite
+			? languagesOf(k, satellite.id).then(
+					(l) => l.answer,
+					() => 'es' as const
+				)
+			: ('es' as const)
 	]);
 	// The family's own bucket as their source: the house's music is not offered (nor its library).
 	const houseMusic = musicFrom === 'casa';
@@ -2541,7 +2554,8 @@ export async function runVoiceCommand(
 						recipes,
 						sites: sites.map(({ id, name, host }) => ({ id, name, host })),
 						style: settings.style,
-						learns: settings.learn
+						learns: settings.learn,
+						language
 					}),
 					cache_control: { type: 'ephemeral' }
 				}
@@ -2657,7 +2671,7 @@ export async function runVoiceCommand(
 				!without.includes(t.function.name) &&
 				(request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name))
 		);
-	available.push(answerTool);
+	available.push(answerToolIn(language));
 	const turn: Turn = {
 		k,
 		order,
@@ -2726,6 +2740,7 @@ export async function runVoiceCommand(
 			try {
 				const text = await converse({
 					apiKey,
+					language,
 					model: settings.conversationModel,
 					question,
 					history: request.history,

@@ -46,10 +46,15 @@ async function libraryHint() {
 	return hint.text;
 }
 
-/** What was said in `audio`; empty if nothing was. `familyWords`: names to write as they are. */
-export async function transcribe(audio: Blob, familyWords = '') {
+/**
+ * What was said in `audio`; empty if nothing was. `familyWords`: names to write as they are.
+ * `language`: its ISO 639-1 code or `auto` (a satellite's, #647), instead of the one the server
+ * started with.
+ */
+export async function transcribe(audio: Blob, familyWords = '', language: string | null = null) {
 	const form = new FormData();
 	form.append('file', audio, 'voz');
+	if (language) form.append('language', language);
 	form.append('response_format', 'json');
 	// The most likely words, not a sampled guess: an order, not prose.
 	form.append('temperature', '0');

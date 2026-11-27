@@ -532,14 +532,17 @@ export async function transcribe(request: {
 	audio: ArrayBuffer;
 	format: string;
 	timeoutMs?: number;
+	/** Its ISO 639-1 code, Spanish by default; null, for the model to find out (#647). */
+	language?: string | null;
 }) {
+	const language = request.language === undefined ? 'es' : request.language;
 	const res = await send(request.apiKey, () =>
 		fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
 			method: 'POST',
 			headers: headers(request.apiKey),
 			body: JSON.stringify({
 				model: TRANSCRIBE_MODEL,
-				language: 'es',
+				...(language ? { language } : {}),
 				input_audio: { data: Buffer.from(request.audio).toString('base64'), format: request.format }
 			}),
 			signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)

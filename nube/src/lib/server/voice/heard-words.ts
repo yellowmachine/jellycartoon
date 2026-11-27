@@ -26,6 +26,14 @@ export async function familyWords(k: Kitchen) {
 	return text;
 }
 
-/** The house's path to hear, with them. */
-export const heardPath = (words: string) =>
-	words ? `/voz/oir?palabras=${encodeURIComponent(words)}` : '/voz/oir';
+/**
+ * The house's path to hear, with them; and in which language (`idioma`, #647: a satellite's),
+ * `auto` for its Whisper to find out; none, the one it started with (Spanish).
+ */
+export function heardPath(words: string, language?: string | null) {
+	const query = new URLSearchParams();
+	if (words) query.set('palabras', words);
+	if (language !== undefined) query.set('idioma', language ?? 'auto');
+	const text = query.toString();
+	return text ? `/voz/oir?${text}` : '/voz/oir';
+}
