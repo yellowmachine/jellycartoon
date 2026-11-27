@@ -176,8 +176,24 @@ entera, con una versión que solo sube (`comun/plug-rules.ts`), en sus avisos:
 - **Dicha al propio satélite**, sin firma: solo si acaba de oír él mismo una orden (menos de
   2 minutos), y solo añadiendo o quitando reglas de sus enchufes, nunca cambiando una que ya tiene.
 
-Con su latido le dice a Seilide su huella y la versión que tiene. Por ahora solo las guarda: las
-sigue cumpliendo Seilide.
+Con su latido le dice a Seilide su huella y la versión que tiene. En cuanto la tiene, **las cumple
+él** (`satellite/src/rule-runner.ts`) y Seilide deja de mirarlas:
+
+- **Sin internet**: el enchufe sigue conectado al satélite aunque se caiga Seilide; el satélite
+  vuelve a intentarlo él solo (de 5 s a 1 minuto) y, al volver, le manda el estado entero del
+  enchufe (`Shelly.GetStatus` como `NotifyFullStatus`).
+- **La hora**: las de una hora, solo con el reloj comprobado con el de Seilide (la cabecera `Date`
+  de sus respuestas) desde que arrancó. Una Raspberry no tiene reloj con pila: tras un corte de luz
+  sin internet arrancaría con la hora en que se apagó. Las de un ciclo no necesitan reloj.
+- **Una vez cada una**: lo hecho se guarda, también entre reinicios. Con más de 5 minutos de
+  retraso se deja; un encargo, se cuenta como perdido y Seilide lo pausa.
+- **El candado, la pausa y el calentón** de cada enchufe se los dice Seilide sin firmar
+  (`plugGuards`), porque solo sirven para no hacer: con candado o en pausa no se toca, y durante el
+  calentón no se pone temporizador, como en Seilide. Sin internet, vale lo último que supo.
+- **Lo que hizo, o por qué no**, se lo cuenta a Seilide (`/api/satelite/reglas`), que lo apunta como
+  lo suyo (Buzón, «Última vez»). Sin internet, lo guarda y lo cuenta al volver; un fallo contado más
+  de media hora tarde solo se apunta, no avisa al móvil.
+- **Un encargo hecho** sale de su lista sin firma, pero solo si lo hizo él mismo.
 
 Al darlo de alta (**Enchufes → Buscar enchufes → Añadir**), el satélite le pone también una
 contraseña suya, para que nadie más en la wifi lo cambie desde su página. Se guarda solo en el

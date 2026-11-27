@@ -3,7 +3,12 @@ import type { RequestHandler } from './$types';
 import { ringingFor, watchAlarms } from '#lib/server/alarms/alarms.ts';
 import { directHearing } from '#lib/server/house.ts';
 import { plugTasksFor } from '#lib/server/plugs/setup.ts';
-import { offeredRulesOf } from '#lib/server/plugs/satellite-rules.ts';
+import { guardsFor, offeredRulesOf } from '#lib/server/plugs/satellite-rules.ts';
+import { watchPlugs } from '#lib/server/plugs/plugs.ts';
+
+/** Its plugs' guards, looked at again no sooner than this after a change (#651). */
+const GUARDS_MS = 3000;
+import type { PlugGuard } from 'comun/plug-rules.ts';
 import type { OfferedPlugRules } from '#lib/server/db/voice.schema.ts';
 import {
 	languagesOf,
@@ -30,7 +35,8 @@ import { greetingsOf, satelliteVoiceOf, voiceKey } from '#lib/server/voice/satel
  * And where it hears directly (`hearing`, #430), its house's Whisper, none to do it through here;
  * failing to know it never holds back what rings. And the smart plugs it is to find or set up in
  * its network (`plugTasks`, #396), answered at /api/satelite/enchufes. And the plug rules it is
- * offered (`plugRules`, #651), signed by a device or said to it.
+ * offered (`plugRules`, #651), signed by a device or said to it, and what stops each plug's
+ * (`plugGuards`: padlock, pause, long heat).
  * Again on every change. While open, it is there for «Compañía» (#469), which asks only those that
  * say they can (`SATELLITE_CAN_HEADER`): a `say` with `listen` is a question, its answer sent to
  * /api/satelite/compania.
@@ -48,6 +54,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		hearing: DirectHearing | null;
 		plugTasks: PlugTask[];
 		plugRules: OfferedPlugRules | null;
+		plugGuards: Record<string, PlugGuard>;
 	};
 	const canAsk = (request.headers.get(SATELLITE_CAN_HEADER) ?? '')
 		.split(',')
@@ -72,9 +79,10 @@ export const GET: RequestHandler = async ({ request }) => {
 							: null
 					)
 					.catch(() => null),
-				offeredRulesOf(k, satellite.id).catch(() => null)
+				offeredRulesOf(k, satellite.id).catch(() => null),
+				guardsFor(k, satellite.id).catch(() => ({}))
 			])
-				.then(([ringing, snapserver, voice, hearing, plugRules]) =>
+				.then(([ringing, snapserver, voice, hearing, plugRules, plugGuards]) =>
 					listener({
 						...ringing,
 						snapserver,
@@ -86,16 +94,41 @@ export const GET: RequestHandler = async ({ request }) => {
 						wakeWord: voice.wakeWord,
 						hearing,
 						plugTasks: plugTasksFor(satellite.id),
-						plugRules
+						plugRules,
+						plugGuards
 					})
 				)
 				.catch((err) => console.warn('[avisos] Para el satélite', err));
 		send();
+		// Its plugs' padlock, pause or long heat changed (#651): again, but only then; their watts
+		// change every second, so looked at no more than every few seconds.
+		let lastGuards = '';
+		let guardTimer: ReturnType<typeof setTimeout> | null = null;
+		void guardsFor(k, satellite.id)
+			.then((g) => (lastGuards = JSON.stringify(g)))
+			.catch(() => {});
+		const guardsMaybe = () => {
+			guardTimer ??= setTimeout(() => {
+				guardTimer = null;
+				void guardsFor(k, satellite.id)
+					.then((g) => {
+						const now = JSON.stringify(g);
+						if (now === lastGuards) return;
+						lastGuards = now;
+						send();
+					})
+					.catch(() => {});
+			}, GUARDS_MS);
+		};
 		const unwatch = [
 			watchAlarms(k.familyId, send),
 			watchSatellite(satellite.id, send),
+			watchPlugs(k.familyId, guardsMaybe),
 			satelliteHere(satellite.id, canAsk)
 		];
-		return () => unwatch.forEach((u) => u());
+		return () => {
+			if (guardTimer) clearTimeout(guardTimer);
+			unwatch.forEach((u) => u());
+		};
 	});
 };

@@ -143,4 +143,19 @@ describe('las reglas de enchufes del satélite (#651, fase 2)', () => {
 		expect(rules.offer({ version: 3, rules: [] }).taken).toBe(true);
 		expect(rules.rules()).toEqual([]);
 	});
+
+	test('un encargo hecho por él mismo sale de la lista sin firma; uno que no hizo, no', async () => {
+		const { rules, sign } = await setup();
+		const errand = termo({
+			id: 3,
+			when: { kind: 'en_fecha', day: '2026-11-28', time: '09:00' },
+			once: true
+		});
+		rules.offer(await sign(1, [termo(), errand]));
+		expect(rules.offer({ version: 2, rules: [termo()] }).taken).toBe(false);
+		rules.markDone(3, '2026-11-28 09:00');
+		expect(rules.offer({ version: 2, rules: [termo()] }).taken).toBe(true);
+		// But never one that is not an errand.
+		expect(rules.offer({ version: 3, rules: [] }).taken).toBe(false);
+	});
 });

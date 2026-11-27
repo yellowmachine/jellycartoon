@@ -150,3 +150,48 @@ export function voiceChangeOk(
 /** The plugs a rule touches: the one it switches, and those it watches. */
 export const plugsOf = (r: SatelliteRule) =>
 	r.when.kind === 'enchufe' ? [r.plug, ...r.when.plugs] : [r.plug];
+
+/**
+ * What stops a plug's rule (#651, phase 3), as Seilide's switchIn: its padlock, its pause, or its
+ * long heat (then no timer). Sent unsigned: it can only make the satellite do less.
+ */
+export interface PlugGuard {
+	locked: boolean;
+	paused: boolean;
+	/** Its long heat goes on until then, in ms; null, none. */
+	heatUntil: number | null;
+}
+
+export function validGuards(v: unknown): v is Record<string, PlugGuard> {
+	if (!isObject(v) || Object.keys(v).length > 200) return false;
+	return Object.entries(v).every(
+		([id, g]) =>
+			isShellyId(id) &&
+			isObject(g) &&
+			typeof g.locked === 'boolean' &&
+			typeof g.paused === 'boolean' &&
+			(g.heatUntil === null || Number.isFinite(g.heatUntil))
+	);
+}
+
+/** Why a rule cannot switch it now, as Seilide says it (rules.ts, switchFor); null, it can. */
+export function guardWhy(g: PlugGuard | undefined, minutes: number | null, now: number) {
+	if (!g) return null;
+	if (g.locked) return 'tiene el candado puesto';
+	if (g.paused) return 'está en pausa';
+	if (minutes && g.heatUntil !== null && g.heatUntil > now)
+		return 'está calentando largo tras la pausa';
+	return null;
+}
+
+/** What a satellite tells Seilide it did with a rule (#651): done, or why not. */
+export interface RuleDone {
+	id: number;
+	/** Which time it was: «2026-11-28 22:00», or a cycle's «ciclo:<ms>». Once each. */
+	key: string;
+	at: number;
+	/** Why not; none, done. */
+	failed?: string;
+	/** Its moment went by without the satellite doing it (a restart, no clock). */
+	missed?: boolean;
+}

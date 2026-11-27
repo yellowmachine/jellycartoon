@@ -14,6 +14,8 @@ import { dosesFor, listMedication } from '#lib/server/medication.ts';
 import { hoursAhead, type HourAhead } from 'comun/weather.ts';
 import { fridgeState, houseKitchen, kitchenOf, type Kitchen } from '#lib/server/fridge.ts';
 import { keepQuietly, tell } from '#lib/server/inbox.ts';
+import { heldRuleIds } from '#lib/server/plugs/held-rules.ts';
+import type { RuleDone } from 'comun/plug-rules.ts';
 import { startTimerAt } from '#lib/server/alarms/alarms.ts';
 import { listMemories, remember } from '#lib/server/memory.ts';
 import { completeJson, DEFAULT_MODEL, guessCost } from '#lib/server/openrouter.ts';
@@ -1075,8 +1077,9 @@ async function onPurchase(k: Kitchen, store: string, bought: Bought) {
  * with its words (the family's, as Enchufes): told or deduced once for it.
  */
 async function onPlug(k: Kitchen, p: PlugHappened) {
+	const held = await heldRuleIds(k.familyId);
 	const rules = (await allRules(houseKitchen(k.familyId))).filter(
-		(r) => !r.paused && plugFits(r, p)
+		(r) => !r.paused && !held.has(r.id) && plugFits(r, p)
 	);
 	if (!rules.length) return;
 	const w = worldNow(k.familyId);
@@ -1192,9 +1195,12 @@ async function setFired(k: Kitchen, r: Rule, fired: string[]) {
 export async function checkTimedRules(familyId: string) {
 	const every = await allRules(houseKitchen(familyId));
 	await forgetOldErrands(houseKitchen(familyId), every);
+	// Those a satellite does itself (#651): not here too.
+	const held = await heldRuleIds(familyId);
 	const rules = every.filter(
 		(r) =>
 			!r.paused &&
+			!held.has(r.id) &&
 			!['nevera', 'recuerdo', 'dicho', 'compra', 'enchufe', 'lugar', 'cita_hecha'].includes(
 				r.spec.when.kind
 			)
@@ -1375,4 +1381,72 @@ export async function simulateRules(k: Kitchen, userId: string, who: string, o: 
 		cost = one === null || cost === null ? null : cost + one;
 	}
 	return { outcomes, unasked: unasked.size, cost: unasked.size ? cost : null };
+}
+
+/** A failure the satellite tells later than this (it was offline): kept, not told on the phone. */
+const SATELLITE_TELL_MS = 30 * 60_000;
+
+/**
+ * What a satellite did with one of its rules (#651, phase 3), as it tells it (also late, after
+ * being without internet): kept as Seilide keeps what it does itself (`fire`, `switchFor`): its
+ * last time and why, once paused, what it did in the Buzón; if it could not, whom it is for told,
+ * unless that was more than half an hour ago (then only kept). Its moment missed, an errand is
+ * paused with why, as `missedMoment`. Only a plug rule of the family, and each time once.
+ */
+export async function satelliteDid(k: Kitchen, satelliteName: string, d: RuleDone) {
+	const [r] = await k.run((tx) =>
+		tx
+			.select(COLUMNS)
+			.from(rule)
+			.where(and(eq(rule.familyId, k.familyId), eq(rule.id, d.id)))
+	);
+	const p = r?.spec.then === 'enchufe' ? r.spec.plug : null;
+	if (!r || !p) return false;
+	const key = `satelite:${d.key}`;
+	if (r.fired.includes(key)) return false;
+	const when = new Date(d.at);
+	const time = localTime(when);
+	const rk = await kitchenFor(k.familyId, r.userId);
+	const did = d.missed
+		? `su hora pasó sin que «${satelliteName}» pudiera hacerlo (sin hora o apagado)`
+		: d.failed
+			? `a las ${time}, «${satelliteName}» no ha podido: «${p.name}» ${d.failed}`
+			: `a las ${time}, «${satelliteName}»: ${plugSaid(p, 'hecho')}`;
+	const fired = [...r.fired.filter((f) => f !== key), key].slice(-KEEP_FIRED);
+	await k.run((tx) =>
+		tx
+			.update(rule)
+			.set({
+				fired,
+				lastWhy: did,
+				...(d.missed ? {} : { lastFiredAt: when }),
+				...(r.spec.once ? { paused: true } : {})
+			})
+			.where(eq(rule.id, r.id))
+	);
+	console.info(`[reglas] «${r.understood}»: ${did}`, { id: r.id, satellite: satelliteName });
+	if (d.missed) return true;
+	if (!d.failed) {
+		await keepQuietly(k.familyId, await recipients(rk, r), {
+			kind: 'regla',
+			level: 'normal',
+			title: `🔌 ${capital(plugSaid(p, 'hecho'))}`,
+			body: `Lo ha hecho «${satelliteName}» a las ${time}. Era para: ${ruleSaid(r)}`,
+			tag: `regla-${r.id}-hecho`,
+			url: '/reglas?ver=encargos',
+			ttl: 6 * 3600
+		});
+		return true;
+	}
+	if (Date.now() - d.at <= SATELLITE_TELL_MS)
+		await tell(k.familyId, await recipients(rk, r), {
+			kind: 'regla',
+			level: 'normal',
+			title: `🔌 No he podido ${plugVerb(p, 'hacer')} «${p.name}»`,
+			body: `«${p.name}» ${d.failed}. Era para: ${ruleSaid(r)}`,
+			tag: `regla-${r.id}-enchufe`,
+			url: '/reglas?ver=encargos',
+			ttl: 6 * 3600
+		});
+	return true;
 }

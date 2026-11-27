@@ -1,5 +1,6 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { canonicalRules, sameRules, validRules, type SatelliteRule } from 'comun/plug-rules.ts';
+import type { PlugGuard } from 'comun/plug-rules.ts';
 import { plug, voiceSatellite } from '#lib/server/db/schema.ts';
 import type { OfferedPlugRules } from '#lib/server/db/voice.schema.ts';
 import { asFamily } from '#lib/server/family.ts';
@@ -159,4 +160,63 @@ export async function offeredRulesOf(k: Kitchen, satelliteId: string) {
 			.where(eq(voiceSatellite.id, satelliteId))
 	);
 	return row?.plugRules ?? null;
+}
+
+/**
+ * Errands done (#651, phase 3), out of a satellite's list without a signature: only when all that
+ * changed is that, which the satellite takes only for errands it did itself (satellite/src/rules.ts).
+ * Else the list waits for a device to sign it.
+ */
+export async function offerDoneErrands(familyId: string, satelliteId: string) {
+	const house = houseKitchen(familyId);
+	const s = (await satellitesOf(house)).find((x) => x.id === satelliteId);
+	if (!s?.plugRules) return;
+	const rules = await satelliteRulesFor(house, s.trustFp!);
+	const before = s.plugRules.rules;
+	if (sameRules(before, rules)) return;
+	const kept = new Map(before.map((r) => [r.id, r]));
+	const onlyGone =
+		rules.every((r) => kept.has(r.id) && sameRules([kept.get(r.id)!], [r])) &&
+		before.filter((r) => !rules.some((x) => x.id === r.id)).every((r) => r.once);
+	if (!onlyGone) return;
+	const offered: OfferedPlugRules = { version: nextVersion(s), rules };
+	await asFamily(familyId, (tx) =>
+		tx.update(voiceSatellite).set({ plugRules: offered }).where(eq(voiceSatellite.id, satelliteId))
+	);
+	tellSatellite(satelliteId);
+}
+
+/**
+ * For its notices (#651, phase 3): what stops each of its plugs' rules, by the Shelly's id, as
+ * switchIn looks at it. Unsigned: it can only make the satellite do less.
+ */
+export async function guardsFor(k: Kitchen, satelliteId: string) {
+	const [sat] = await k.run((tx) =>
+		tx
+			.select({ fp: voiceSatellite.trustFp })
+			.from(voiceSatellite)
+			.where(eq(voiceSatellite.id, satelliteId))
+	);
+	const fp = sat?.fp;
+	if (!fp) return {};
+	const rows = await k.run((tx) =>
+		tx
+			.select({
+				deviceId: plug.deviceId,
+				locked: plug.locked,
+				paused: plug.paused,
+				heatUntil: plug.heatUntil
+			})
+			.from(plug)
+			.where(and(eq(plug.familyId, k.familyId), eq(plug.satelliteFp, fp)))
+	);
+	const guards: Record<string, PlugGuard> = {};
+	for (const r of rows)
+		if (r.deviceId)
+			guards[r.deviceId] = {
+				locked: r.locked,
+				paused: r.paused,
+				heatUntil: r.heatUntil ? r.heatUntil.getTime() : null
+			};
+	return guards;
 }

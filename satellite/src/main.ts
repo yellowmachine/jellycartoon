@@ -20,6 +20,8 @@ import {
 	hearEarly,
 	plugAddressStart,
 	orderAgo,
+	clockOk,
+	reportRules,
 	reportPlugTask,
 	sendOrder,
 	serverName,
@@ -38,6 +40,7 @@ import { doPlugTask } from './plugs.ts';
 import { altaPage, doEnrolTask, homeAddress, pageAddress, passwordGate } from './alta.ts';
 import { startRelay } from './relay.ts';
 import { createRules } from './rules.ts';
+import { createRunner } from './rule-runner.ts';
 import { createTrust } from './trust.ts';
 import {
 	DEFAULT_WAKE_WORD,
@@ -680,6 +683,7 @@ if (serverReady)
 		else void ring();
 		void sayOnce();
 		doPlugTasks(state.plugTasks ?? []);
+		if ('plugGuards' in state) plugRules.setGuards(state.plugGuards);
 		if (state.plugRules) {
 			const r = plugRules.offer(state.plugRules);
 			if (r.why) log(`Reglas de enchufes no tomadas: ${r.why}`);
@@ -702,7 +706,7 @@ const relay =
 			})
 		: null;
 
-/** The plug rules it keeps (#651): signed by a device, or said here. Not done yet (phase 3). */
+/** The plug rules it keeps (#651): signed by a device, or said here; done here (phase 3). */
 const plugRules = createRules({
 	file: process.env.RULES_FILE ?? '/data/reglas.json',
 	trust,
@@ -710,6 +714,20 @@ const plugRules = createRules({
 	ownPlug: (id) => relay?.hasPlug(id) ?? false,
 	log
 });
+const runner = createRunner({
+	rules: plugRules,
+	switchPlug: async (id, on, minutes) => {
+		if (!relay) throw new Error('sin enchufes en este satélite');
+		await relay.switchPlug(id, on, minutes);
+	},
+	clockOk,
+	send: reportRules,
+	log
+});
+if (relay) {
+	relay.onCycle((id, event) => runner.cycle(id, event));
+	runner.start();
+}
 
 // Its beat, every minute (#469); with its fingerprint and its rules' version (#651).
 const beatNow = startBeats(
