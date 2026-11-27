@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { answerLanguage, hearingLanguage, heardLanguages, saidIn } from './satellite-language.ts';
+import {
+	answerLanguage,
+	hearingLanguage,
+	heardLanguages,
+	languageLine,
+	saidIn
+} from './satellite-language.ts';
 
 describe('idiomas del satélite (#647)', () => {
 	test('sin nada guardado, o con basura, español', () => {
@@ -24,5 +30,11 @@ describe('idiomas del satélite (#647)', () => {
 	test('en español, lo de siempre', () => {
 		expect(saidIn('es')).toBe('en español');
 		expect(saidIn('en')).toContain('in English');
+	});
+
+	test('con cada orden, el idioma otra vez; en español, nada', () => {
+		expect(languageLine('es')).toBeNull();
+		expect(languageLine('fr')).toContain('Réponds en français');
+		expect(languageLine('en')).toContain('Answer in English');
 	});
 });

@@ -125,7 +125,7 @@ import {
 } from '#lib/server/rules.ts';
 import { doseText } from 'comun/medication.ts';
 import { languagesOf } from '#lib/server/satellites.ts';
-import { saidIn, type AnswerLanguage } from '#lib/satellite-language.ts';
+import { languageLine, saidIn, type AnswerLanguage } from '#lib/satellite-language.ts';
 import { dosesFor, listMedication, markDose } from '#lib/server/medication.ts';
 import { MAX_RULE, ruleSaid } from '#lib/rules.ts';
 import { localDay, localTime } from 'comun/agenda.ts';
@@ -2623,6 +2623,11 @@ export async function runVoiceCommand(
 								text: `[Son horas de silencio en casa (de ${settings.quiet!.from} a ${settings.quiet!.to}): seguramente se acaba de despertar o está en la cama. Contesta en una sola frase muy corta, con lo que pide y nada más: sin contar lo que suena, sin ofrecer nada.]`
 							}
 						]
+					: []),
+				// The language, again with each order (#647): only in the instructions, which are in
+				// Spanish, an order said in Spanish was answered in Spanish.
+				...(languageLine(language)
+					? [{ type: 'text' as const, text: languageLine(language)! }]
 					: []),
 				{ type: 'text', text: request.text }
 			]
