@@ -21,20 +21,36 @@ jellycartoon, además, la música, la radio y los altavoces de la casa (#296).
 
 1. En Seilide, **Ajustes → Familia → «Satélites de voz» → Añadir**, con el nombre de la
    habitación. Enseña su `SERVER_URL` y su clave una sola vez: cópialas.
-2. En la Raspberry, una carpeta con `compose.prod.yaml` y `.env.example` de aquí, y el segundo
-   copiado como `.env`, con esas dos líneas rellenas, y `WUD_PASSWORD` con una contraseña nueva
-   (`openssl rand -hex 16`): sin ella WUD no arranca (desde su 9.6 pide un administrador), y el
-   compose no se levanta.
+2. En la Raspberry, una carpeta con `compose.prod.yaml`, `actualizar.sh`, `cosign.pub` y
+   `.env.example` de aquí. El último, copiado como `.env`, con esas dos líneas rellenas.
 3. El micrófono y el altavoz, por su nombre en ALSA: `arecord -L` y `aplay -L` (por ejemplo
    `plughw:CARD=Microphone` y `plughw:CARD=Headphones`), en `MIC` y `SPEAKER`.
-4. `docker compose -f compose.prod.yaml up -d`, y para ver que oye:
+4. `./actualizar.sh --instalar`: comprueba la firma de la última versión, la pone y deja la
+   actualización de cada noche en el crontab. Para ver que oye:
    `docker compose -f compose.prod.yaml logs -f satellite` («Escuchando «Alexa» en …»).
 
 En un PC los nombres de ALSA son otros (el audio integrado suele ser `plughw:CARD=PCH`). Si
 tiene escritorio, su PulseAudio o PipeWire puede tener la tarjeta cogida y el satélite no oír ni
 sonar: mejor sin sesión gráfica, o con el audio del escritorio apagado. Sin probar aún.
 
-Se actualiza solo: WUD mira cada noche (a las 4:30, `UPDATE_CRON`) si hay versión nueva, y la pone.
+## Las actualizaciones, firmadas
+
+Se actualiza solo cada noche a las 4:30 con `actualizar.sh`, desde el crontab (#643, fase 4), y
+solo con imágenes firmadas con la clave de la familia. Así, alguien que entrara en la cuenta de
+GitHub podría publicar una imagen, pero no firmarla, y el satélite no la instalaría.
+
+- La imagen se firma con [cosign](https://github.com/sigstore/cosign) y una clave que solo está en
+  el PC de quien publica, nunca en GitHub (`scripts/firmar-satelite.sh vX.Y.Z`, después de que acabe
+  la Action de la versión). Sin el registro de transparencia: lo que protege es la clave, y el
+  satélite la comprueba sin depender de ningún servicio de Sigstore.
+- El satélite comprueba la firma con su `cosign.pub`, copiado al instalarlo y nunca bajado otra vez
+  (una clave bajada de GitHub podría ser la del atacante). Fija la imagen por su digest en
+  `SATELLITE_IMAGE`, en el `.env`, y nunca pone una versión más antigua que la que tiene.
+- cosign corre con su propia imagen, fijada por digest en `actualizar.sh`.
+- Lo que hace queda en `actualizar.log`, junto al script. Para actualizar ya: `./actualizar.sh`.
+
+Una versión que salió sin firmar no se instala nunca: se queda en la anterior hasta la siguiente
+firmada.
 
 ## Los ajustes del `.env`
 
@@ -56,8 +72,6 @@ Se actualiza solo: WUD mira cada noche (a las 4:30, `UPDATE_CRON`) si hay versi�
 | `ALTA_CLAVE`               | (vacía)             | Opcional: con ella, su página `/alta` abre el alta de aparatos, como «añade un aparato». Solo en el satélite, nunca en Seilide.                                                                                            |
 | `TZ`                       | `Europe/Madrid`     | Su hora.                                                                                                                                                                                                                   |
 | `COMPOSE_PROFILES`         | (vacío)             | `dns` en uno solo de los satélites: el [DNS de la casa](#el-dns-de-la-casa-adguard-home).                                                                                                                                  |
-| `WUD_PASSWORD`             | (obligatoria)       | La de WUD, que lo actualiza: `openssl rand -hex 16`.                                                                                                                                                                       |
-| `UPDATE_CRON`              | `30 4 * * *`        | Cuándo mira WUD si hay versión nueva.                                                                                                                                                                                      |
 
 «Por defecto» es lo que pone el compose si la variable falta; el `.env.example` que se copia al
 instalar ya trae `WAKE_WORD="alexa"` y `WAKE_THRESHOLD="0.5"`. Cambiar el `.env` necesita
@@ -162,7 +176,7 @@ deja a nadie sin internet, y el nombre de la casa se resuelve dentro a la IP del
 7. En el router, el DHCP: DNS primario la Raspberry, secundario el salón. Los aparatos lo cogen
    al renovar la IP (apagar y encender el wifi lo adelanta).
 
-WUD no lo actualiza: una versión nueva de AdGuard se cambia a mano en `compose.prod.yaml`, para que
+Nada lo actualiza solo: una versión nueva de AdGuard se cambia a mano en `compose.prod.yaml`, para que
 una actualización de noche no deje la casa sin DNS.
 
 ## Mientras se desarrolla
