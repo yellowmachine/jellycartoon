@@ -58,3 +58,21 @@ export function saidIn(language: AnswerLanguage) {
 			return 'en el idioma en que te hablen (español, inglés o francés)';
 	}
 }
+
+/**
+ * Said with each order, just before it (#647), in its own language too: in the instructions alone,
+ * among so much Spanish, the voice model answered an order said in Spanish in Spanish. None in
+ * Spanish, as before.
+ */
+export function languageLine(language: AnswerLanguage) {
+	switch (language) {
+		case 'es':
+			return null;
+		case 'en':
+			return '[Contesta en inglés, aunque te hablen en español u otro idioma: el texto de «answer», en inglés. Answer in English.]';
+		case 'fr':
+			return '[Contesta en francés, aunque te hablen en español u otro idioma: el texto de «answer», en francés. Réponds en français.]';
+		case 'auto':
+			return '[El idioma de tu respuesta es el de esta orden: si está dicha en inglés, contesta en inglés; si en francés, en francés; si en español, en español. If this order is in English, answer in English. Si cette demande est en français, réponds en français.]';
+	}
+}
