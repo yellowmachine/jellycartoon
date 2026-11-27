@@ -34,6 +34,7 @@ import { beep, hush, play, speakerName } from './sound.ts';
 import { fallbackFor, greeting, keepFallbacks, sayFallback } from './fallback.ts';
 import { followSnapserver } from './snapclient.ts';
 import { doPlugTask } from './plugs.ts';
+import { startRelay } from './relay.ts';
 import {
 	DEFAULT_WAKE_WORD,
 	isWakeWord,
@@ -678,6 +679,10 @@ if (serverReady)
 	});
 
 startBeats();
+
+// The plugs through the satellite (#643): their WebSocket here, on to Seilide.
+if (serverReady && plugAddressStart && process.env.SATELLITE_KEY)
+	startRelay({ upstream: plugAddressStart, key: process.env.SATELLITE_KEY, log });
 
 /** The plug tasks taken already (#396), by their id: not again while the server still sends them. */
 const plugTasksTaken = new Set<string>();

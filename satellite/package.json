@@ -5,9 +5,11 @@
 	"type": "module",
 	"dependencies": {
 		"multicast-dns": "7.2.5",
-		"onnxruntime-node": "1.30.0"
+		"onnxruntime-node": "1.30.0",
+		"ws": "8.22.1"
 	},
 	"devDependencies": {
-		"@types/multicast-dns": "7.2.4"
+		"@types/multicast-dns": "7.2.4",
+		"@types/ws": "8.18.2"
 	}
 }

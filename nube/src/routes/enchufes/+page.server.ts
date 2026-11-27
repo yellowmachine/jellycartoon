@@ -21,7 +21,12 @@ import {
 	switchPlug,
 	updatePlug
 } from '#lib/server/plugs/plugs.ts';
-import { addFoundPlug, satellitesOf, searchPlugs } from '#lib/server/plugs/setup.ts';
+import {
+	addFoundPlug,
+	moveToSatellite,
+	satellitesOf,
+	searchPlugs
+} from '#lib/server/plugs/setup.ts';
 import { isPlugKind, MAX_ON_HOURS, MAX_PLUG_NAME, plugAddress, TIMER_MINUTES } from '#lib/plugs.ts';
 
 /** Enchufes (#396): the family's smart plugs, on and off, and what they use. */
@@ -202,6 +207,13 @@ export const actions: Actions = {
 			return fail(400, { problem: 'Pon el precio en euros, como 0,15' });
 		await setKwhPrice(locals.user!.id, price);
 		return { priced: true };
+	},
+	/** Straight to Seilide until now (#643): through a satellite from now on. */
+	toSatellite: async ({ request, locals, url }) => {
+		const id = String((await request.formData()).get('id') ?? '');
+		const done = await moveToSatellite(locals.user!.id, url.origin, id);
+		if ('problem' in done) return fail(400, { moveProblem: id, problem: done.problem });
+		return { moved: id };
 	},
 	remove: async ({ request, locals }) => {
 		await deletePlug(locals.user!.id, String((await request.formData()).get('id') ?? ''));

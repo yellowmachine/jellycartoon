@@ -68,6 +68,8 @@ export interface PlugView {
 	kind: PlugKind;
 	/** Connected to Seilide now. */
 	online: boolean;
+	/** Connected through one of the family's satellites (#643): Seilide can only switch it. */
+	relayed: boolean;
 	/** Never connected yet: still to be set up. */
 	waiting: boolean;
 	/** Not connected, but Seilide has just started (a new version): it is coming back by itself. */

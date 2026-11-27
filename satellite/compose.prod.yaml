@@ -10,7 +10,7 @@ services:
     image: ghcr.io/yellowmachine/jellycartoon-satellite:${IMAGE_TAG:-stable}
     restart: unless-stopped
     # The host's network (#396): finding the Shelly plugs by mDNS, whose multicast Docker's bridge
-    # does not pass. It opens no port.
+    # does not pass. It opens one port, PLUG_PORT (8790), where the plugs connect (#643).
     network_mode: host
     devices:
       - /dev/snd
@@ -33,6 +33,7 @@ services:
       SERVER_URL: ${SERVER_URL:?SERVER_URL is required}
       SATELLITE_KEY: ${SATELLITE_KEY:?SATELLITE_KEY is required}
       SPEAKER: ${SPEAKER:-}
+      PLUG_PORT: ${PLUG_PORT:-8790}
       # The house's music (its snapserver, said by Seilide) on another device than the voice's.
       SNAPCLIENT_SOUNDCARD: ${SNAPCLIENT_SOUNDCARD:-}
     volumes:

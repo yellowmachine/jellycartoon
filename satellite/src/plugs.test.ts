@@ -1,12 +1,25 @@
-import { afterEach, describe, expect, test } from 'bun:test';
-import { doPlugTask, isHomeIp } from './plugs.ts';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { digestHeader, doPlugTask, ha1Of, isHomeIp, ownAddressFor, upstreamOf } from './plugs.ts';
 
 /** Plugs set up from the satellite (#396): only in the home's network, only for its own Seilide. */
 
 const realFetch = globalThis.fetch;
+let dir = '';
+beforeEach(() => {
+	dir = mkdtempSync(join(tmpdir(), 'enchufes-'));
+	process.env.PLUG_PASSWORDS_FILE = join(dir, 'enchufes.json');
+});
 afterEach(() => {
 	globalThis.fetch = realFetch;
+	rmSync(dir, { recursive: true, force: true });
 });
+
+/** The satellite, at .2 of the plug's network. */
+const OWN = () => '192.168.1.2';
+const saved = () => JSON.parse(readFileSync(process.env.PLUG_PASSWORDS_FILE!, 'utf8'));
 
 /** A Shelly at 192.168.1.50 that answers as the Plug M Gen3 did; what it was asked, kept. */
 function fakeShelly({ auth = false, id = 'shellyplugmg3-1' } = {}) {
@@ -43,30 +56,50 @@ describe('plugs from the satellite', () => {
 		expect(isHomeIp('seilide.app')).toBe(false);
 	});
 
-	test('set up: its outbound WebSocket on with that address, then a restart', async () => {
+	test('set up (#643): pointed at the satellite with its token, a password of its own, a restart', async () => {
 		const asked = fakeShelly();
-		expect(await doPlugTask(task(), ALLOWED)).toEqual({ id: 't1' });
+		expect(await doPlugTask(task(), ALLOWED, OWN)).toEqual({ id: 't1' });
 		const rpcs = asked.filter((a) => a.url === 'http://192.168.1.50/rpc').map((a) => a.body);
+		const password = saved()['shellyplugmg3-1'];
+		expect(password).toHaveLength(32);
 		expect(rpcs).toEqual([
 			{
 				id: 1,
 				method: 'Ws.SetConfig',
-				params: { config: { enable: true, server: task().server } }
+				params: {
+					config: { enable: true, server: `ws://192.168.1.2:8790/enchufe/${'a'.repeat(43)}` }
+				}
+			},
+			{
+				id: 1,
+				method: 'Shelly.SetAuth',
+				params: { user: 'admin', realm: 'shellyplugmg3-1', ha1: ha1Of('shellyplugmg3-1', password) }
 			},
 			{ id: 1, method: 'Shelly.Reboot' }
 		]);
 	});
 
+	test("not in the plug's network: not touched", async () => {
+		const asked = fakeShelly();
+		expect((await doPlugTask(task(), ALLOWED, () => null)).problem).toContain('misma red');
+		expect(asked.some((a) => a.url.endsWith('/rpc'))).toBe(false);
+	});
+
 	test('never to an address not of its Seilide, nor outside home', async () => {
 		const asked = fakeShelly();
-		expect(await doPlugTask(task({ server: 'wss://otro.example/x' }), ALLOWED)).toEqual({
+		expect(await doPlugTask(task({ server: 'wss://otro.example/x' }), ALLOWED, OWN)).toEqual({
 			id: 't1',
 			problem: 'Esa dirección no es de Seilide'
 		});
-		expect(await doPlugTask(task({ ip: '8.8.8.8' }), ALLOWED)).toMatchObject({
+		expect(
+			await doPlugTask(task({ server: `${ALLOWED}x/../../otro` }), ALLOWED, OWN)
+		).toMatchObject({
+			problem: 'Esa dirección no es de Seilide'
+		});
+		expect(await doPlugTask(task({ ip: '8.8.8.8' }), ALLOWED, OWN)).toMatchObject({
 			problem: 'Esa IP no es de casa'
 		});
-		expect(await doPlugTask(task(), null)).toMatchObject({
+		expect(await doPlugTask(task(), null, OWN)).toMatchObject({
 			problem: 'Esa dirección no es de Seilide'
 		});
 		expect(asked).toEqual([]);
@@ -74,10 +107,52 @@ describe('plugs from the satellite', () => {
 
 	test('another plug at that IP now, or with a password: not touched', async () => {
 		let asked = fakeShelly({ id: 'otro' });
-		expect((await doPlugTask(task(), ALLOWED)).problem).toContain('ya no está en esa IP');
+		expect((await doPlugTask(task(), ALLOWED, OWN)).problem).toContain('ya no está en esa IP');
 		expect(asked.some((a) => a.url.endsWith('/rpc'))).toBe(false);
 		asked = fakeShelly({ auth: true });
-		expect((await doPlugTask(task(), ALLOWED)).problem).toContain('contraseña');
+		expect((await doPlugTask(task(), ALLOWED, OWN)).problem).toContain('contraseña');
 		expect(asked.some((a) => a.url.endsWith('/rpc'))).toBe(false);
+	});
+
+	test('its own address: the interface whose subnet holds the plug', () => {
+		const nets = {
+			lo: [{ address: '127.0.0.1', netmask: '255.0.0.0', family: 'IPv4', internal: true }],
+			docker0: [{ address: '172.17.0.1', netmask: '255.255.0.0', family: 'IPv4', internal: false }],
+			wlan0: [
+				{ address: '192.168.68.61', netmask: '255.255.252.0', family: 'IPv4', internal: false }
+			]
+		} as unknown as Parameters<typeof ownAddressFor>[1];
+		expect(ownAddressFor('192.168.69.20', nets)).toBe('192.168.68.61');
+		expect(ownAddressFor('10.0.0.5', nets)).toBeNull();
+	});
+
+	test('a plug pointed at a satellite is shown as its Seilide address', () => {
+		const token = 'b'.repeat(43);
+		expect(upstreamOf(`ws://192.168.1.2:8790/enchufe/${token}`, ALLOWED)).toEqual({
+			server: `${ALLOWED}${token}`,
+			relayed: true
+		});
+		expect(upstreamOf('wss://otro.example/x', ALLOWED)).toEqual({
+			server: 'wss://otro.example/x',
+			relayed: false
+		});
+		expect(upstreamOf(`ws://8.8.8.8:8790/enchufe/${token}`, ALLOWED).relayed).toBe(false);
+	});
+
+	test('digest as Shelly documents it (SHA-256, qop auth)', () => {
+		const ha1 = ha1Of('shellyplugmg3-1', 'clave');
+		const header = digestHeader(
+			'Digest qop="auth", realm="shellyplugmg3-1", nonce="abc", algorithm=SHA-256',
+			ha1,
+			'POST',
+			'/rpc'
+		);
+		const field = (n: string) => header.match(new RegExp(`${n}="?([^",]+)"?`))![1]!;
+		const h = (t: string) => new Bun.CryptoHasher('sha256').update(t).digest('hex');
+		expect(field('realm')).toBe('shellyplugmg3-1');
+		expect(field('nonce')).toBe('abc');
+		expect(field('response')).toBe(
+			h(`${ha1}:abc:00000001:${field('cnonce')}:auth:${h('POST:/rpc')}`)
+		);
 	});
 });
