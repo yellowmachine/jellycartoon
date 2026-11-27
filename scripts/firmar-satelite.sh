@@ -15,6 +15,8 @@
 set -euo pipefail
 
 version=${1:?Falta la versión: scripts/firmar-satelite.sh v2.174.0}
+# The image tags go without the «v» of the release.
+version=${version#v}
 key=${COSIGN_KEY:-$HOME/.config/seilide/cosign.key}
 REPO=ghcr.io/yellowmachine/jellycartoon-satellite
 COSIGN=ghcr.io/sigstore/cosign/cosign:v3.1.6@sha256:7d08ec40d6f6fd9ced81a498c367ee6d4dd90d73218f58a791f78661bdbef769
