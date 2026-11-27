@@ -159,6 +159,42 @@ contesta a Seilide con un error 403 y lo anota en su registro. Así, si alguien 
 podría encender y apagar, pero no meter un script en el enchufe ni llevárselo a otro servidor.
 Shelly no pide contraseña en su WebSocket de salida, por eso la lista es lo que lo protege.
 
+El satélite también lee los vatios que suben (#651): con la misma cuenta que Seilide
+(`comun/plug-watch.ts`), sabe cuándo empieza y acaba un ciclo de cada enchufe («cuando acabe la
+lavadora»), y lo anota en su registro. Es el primer paso para que cumpla él las reglas de enchufes,
+también sin internet.
+
+### Las reglas de enchufes, en el satélite (#651)
+
+Las reglas que el satélite puede mirar él solo (encender o apagar un enchufe suyo cada día a una
+hora, un día a una hora, o cuando un enchufe suyo empieza o acaba un ciclo, sin condiciones) las
+guarda en `/data/reglas.json` (`satellite/src/rules.ts`). Seilide se las ofrece como una lista
+entera, con una versión que solo sube (`comun/plug-rules.ts`), en sus avisos:
+
+- **Firmada** por un aparato dado de alta en él (**Enchufes → Reglas en los satélites → Firmar**,
+  `Satelite.Reglas`): la toma aunque llegue tarde, porque lo que la protege es su versión, no su hora.
+- **Dicha al propio satélite**, sin firma: solo si acaba de oír él mismo una orden (menos de
+  2 minutos), y solo añadiendo o quitando reglas de sus enchufes, nunca cambiando una que ya tiene.
+
+Con su latido le dice a Seilide su huella y la versión que tiene. En cuanto la tiene, **las cumple
+él** (`satellite/src/rule-runner.ts`) y Seilide deja de mirarlas:
+
+- **Sin internet**: el enchufe sigue conectado al satélite aunque se caiga Seilide; el satélite
+  vuelve a intentarlo él solo (de 5 s a 1 minuto) y, al volver, le manda el estado entero del
+  enchufe (`Shelly.GetStatus` como `NotifyFullStatus`).
+- **La hora**: las de una hora, solo con el reloj comprobado con el de Seilide (la cabecera `Date`
+  de sus respuestas) desde que arrancó. Una Raspberry no tiene reloj con pila: tras un corte de luz
+  sin internet arrancaría con la hora en que se apagó. Las de un ciclo no necesitan reloj.
+- **Una vez cada una**: lo hecho se guarda, también entre reinicios. Con más de 5 minutos de
+  retraso se deja; un encargo, se cuenta como perdido y Seilide lo pausa.
+- **El candado, la pausa y el calentón** de cada enchufe se los dice Seilide sin firmar
+  (`plugGuards`), porque solo sirven para no hacer: con candado o en pausa no se toca, y durante el
+  calentón no se pone temporizador, como en Seilide. Sin internet, vale lo último que supo.
+- **Lo que hizo, o por qué no**, se lo cuenta a Seilide (`/api/satelite/reglas`), que lo apunta como
+  lo suyo (Buzón, «Última vez»). Sin internet, lo guarda y lo cuenta al volver; un fallo contado más
+  de media hora tarde solo se apunta, no avisa al móvil.
+- **Un encargo hecho** sale de su lista sin firma, pero solo si lo hizo él mismo.
+
 Al darlo de alta (**Enchufes → Buscar enchufes → Añadir**), el satélite le pone también una
 contraseña suya, para que nadie más en la wifi lo cambie desde su página. Se guarda solo en el
 satélite (`/data/enchufes.json`, en su volumen) y no se manda a Seilide. Los enchufes que ya iban

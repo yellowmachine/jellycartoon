@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { WebSocket, WebSocketServer } from 'ws';
 import { isHomeIp, RELAY_PATH, RELAY_PORT } from './plugs.ts';
 import type { Trust } from './trust.ts';
+import { PlugWatch, switchReading, type CycleEvent } from '../../packages/comun/src/plug-watch.ts';
 
 /**
  * The plugs through the satellite (#643, phase 1): each Shelly's outbound WebSocket points here, in
@@ -26,6 +27,13 @@ const MAX_TOGGLE_S = 86_400;
 const MAX_PAYLOAD = 64 * 1024;
 /** A plug that does not answer a ping in this long is dropped: Seilide must not see it online. */
 const PING_MS = 30_000;
+/** Seilide's side dropped: tried again this long after, doubling up to the most (#651). */
+const UP_RETRY_MS = 5000;
+const UP_RETRY_MAX_MS = 60_000;
+/** What a plug says before Seilide's side first opens: kept, at most these. */
+const MAX_EARLY = 50;
+/** How often time alone is looked at for each plug's cycle (DONE_MS is minutes). */
+const WATCH_TICK_MS = 30_000;
 
 type Params = Record<string, unknown>;
 
@@ -263,6 +271,13 @@ export interface RelayOptions {
 	fromHome?: (ip: string) => boolean;
 	/** Its other pages (alta.ts), on the same port: true if it answered. */
 	page?: (req: IncomingMessage, res: ServerResponse) => boolean;
+	/**
+	 * A plug's appliance starts or ends a cycle (#651, phase 1), as Seilide's watch reads its watts:
+	 * by its Shelly id, for the rules the satellite keeps.
+	 */
+	onCycle?: (shellyId: string, event: CycleEvent) => void;
+	/** Seilide's side dropped: first tried again this long after (a test, sooner). */
+	upRetryMs?: number;
 	now?: () => number;
 }
 
@@ -275,8 +290,49 @@ export function startRelay({
 	log,
 	fromHome = isHomeIp,
 	page,
+	onCycle,
+	upRetryMs = UP_RETRY_MS,
 	now = Date.now
 }: RelayOptions) {
+	/**
+	 * Each plug's cycle (#651), by its Shelly id: kept across its reconnections, as Seilide keeps its
+	 * own (plugs/notices.ts). Only the cycle: the notices are still Seilide's.
+	 */
+	const watches = new Map<string, PlugWatch>();
+	let cycleListener = onCycle;
+	/** The plugs that have come through here since it started, by their Shelly id (#651). */
+	const seenPlugs = new Set<string>();
+	/**
+	 * Those connected now, by their Shelly id (#651, phase 3): for its rules to switch them here,
+	 * with the same limit of changes per minute as Seilide's orders.
+	 */
+	const live = new Map<
+		string,
+		{
+			plug: WebSocket;
+			call: (method: string, params?: Record<string, unknown>) => Promise<unknown>;
+			change: () => boolean;
+		}
+	>();
+	const cycleOf = (shellyId: string, events: string[]) => {
+		for (const e of events)
+			if (e === 'started' || e === 'finished') {
+				log(`Enchufe ${shellyId}: ${e === 'started' ? 'empieza un ciclo' : 'acaba un ciclo'}`);
+				cycleListener?.(shellyId, e);
+			}
+	};
+	const ticker = setInterval(() => {
+		for (const [id, w] of watches) cycleOf(id, w.tick(now()));
+	}, WATCH_TICK_MS);
+	ticker.unref?.();
+	const watchOf = (shellyId: string) => {
+		let w = watches.get(shellyId);
+		if (!w) {
+			w = new PlugWatch({ done: false, stopped: false, offline: false, onHours: null }, now());
+			watches.set(shellyId, w);
+		}
+		return w;
+	};
 	const http = createServer((req, res) => {
 		const from = (req.socket.remoteAddress ?? '').replace(/^::ffff:/, '');
 		if (fromHome(from) && page?.(req, res)) return;
@@ -295,14 +351,32 @@ export function startRelay({
 		const token = req.url?.match(RELAY_PATH)?.[1];
 		if (!fromHome(from) || !token) return plug.close(1008, 'No');
 
-		const up = new WebSocket(`${upstream}${token}`, {
-			headers: { 'x-api-key': key },
-			maxPayload: MAX_PAYLOAD
-		});
+		/**
+		 * Seilide's side (#651, phase 3): apart from the plug's. If it drops (no internet), the plug
+		 * stays here, its cycles still read, and it is tried again, later each time; back, Seilide is
+		 * told the plug's whole state, as if it had just connected.
+		 */
+		let up: WebSocket | null = null;
+		let upOpened = false;
+		let upTries = 0;
+		let upTimer: ReturnType<typeof setTimeout> | null = null;
+		let ended = false;
+		const toSeilide = (text: string) => {
+			if (up?.readyState === WebSocket.OPEN) up.send(text);
+		};
+		/** Said before Seilide's side first opened: kept, a few. After, without it, not kept. */
 		const early: string[] = [];
 		/** Who it is, as its own frames say (`src`): signed orders name it. */
 		let shellyId: string | null = null;
 		let changes: number[] = [];
+		/** One more change now, if the minute's limit lets it. */
+		const change = () => {
+			const at = now();
+			changes = changes.filter((t) => t > at - 60_000);
+			if (changes.length >= MAX_CHANGES_PER_MIN) return false;
+			changes.push(at);
+			return true;
+		};
 		let alive = true;
 		/** The satellite's own orders to the plug (a schedule batch): their answers stay here. */
 		let ownId = 1_000_000_000;
@@ -345,11 +419,11 @@ export function startRelay({
 				}
 				trust.setJobs(id, made);
 				log(`Enchufe ${id}: horarios firmados por ${b.by}`);
-				up.send(answer(b.id, b.src, { jobs: made }));
+				toSeilide(answer(b.id, b.src, { jobs: made }));
 			} catch (err) {
 				const why = err instanceof Error ? err.message : String(err);
 				log(`Enchufe ${id}: horarios a medias (${why})`);
-				up.send(
+				toSeilide(
 					JSON.stringify({
 						id: b.id,
 						src: 'satelite',
@@ -364,10 +438,18 @@ export function startRelay({
 			alive = false;
 			plug.ping();
 		}, PING_MS);
+		/** Only when the plug goes: Seilide's side with it, for good. */
 		const end = () => {
+			if (ended) return;
+			ended = true;
 			clearInterval(pinger);
+			if (upTimer) clearTimeout(upTimer);
+			if (shellyId) {
+				watches.get(shellyId)?.gone(now());
+				if (live.get(shellyId)?.plug === plug) live.delete(shellyId);
+			}
 			if (plug.readyState === WebSocket.OPEN) plug.close();
-			if (up.readyState === WebSocket.OPEN || up.readyState === WebSocket.CONNECTING)
+			if (up && (up.readyState === WebSocket.OPEN || up.readyState === WebSocket.CONNECTING))
 				up.terminate();
 		};
 
@@ -395,23 +477,28 @@ export function startRelay({
 			if (!shellyId)
 				try {
 					const src = (JSON.parse(text) as { src?: unknown }).src;
-					if (typeof src === 'string' && /^shelly[\w-]{1,80}$/i.test(src)) shellyId = src;
+					if (typeof src === 'string' && /^shelly[\w-]{1,80}$/i.test(src)) {
+						shellyId = src;
+						seenPlugs.add(src);
+						live.set(src, { plug, call: plugCall, change });
+					}
 				} catch {
 					// Not JSON: passed on as it is; Seilide does not understand it either.
 				}
-			if (up.readyState === WebSocket.OPEN) up.send(text);
-			else early.push(text);
+			// Its watts, for the cycle: whatever happens with Seilide.
+			const reading = shellyId ? switchReading(text) : null;
+			if (reading)
+				cycleOf(shellyId!, watchOf(shellyId!).seen(reading.power, reading.output, now()));
+			if (up?.readyState === WebSocket.OPEN) up.send(text);
+			else if (!upOpened && early.length < MAX_EARLY) early.push(text);
 		});
-		up.on('open', () => {
-			for (const text of early.splice(0)) up.send(text);
-		});
-		up.on('message', (data) => {
+		const fromSeilide = (data: unknown) => {
 			const decision = decide(String(data), trust, shellyId);
 			if ('batch' in decision) {
 				const at = now();
 				changes = changes.filter((t) => t > at - 60_000);
 				if (changes.length >= MAX_CHANGES_PER_MIN)
-					return up.send(refusal(decision.id, 'seilide', 'demasiadas órdenes en un minuto'));
+					return toSeilide(refusal(decision.id, 'seilide', 'demasiadas órdenes en un minuto'));
 				changes.push(at);
 				return void runBatch(decision);
 			}
@@ -422,7 +509,7 @@ export function startRelay({
 					if (changes.length >= MAX_CHANGES_PER_MIN) {
 						const id = (JSON.parse(decision.toPlug) as { id: number }).id;
 						log(`Enchufe ${shellyId ?? from}: demasiadas órdenes`);
-						return up.send(refusal(id, 'seilide', 'demasiadas órdenes en un minuto'));
+						return toSeilide(refusal(id, 'seilide', 'demasiadas órdenes en un minuto'));
 					}
 					changes.push(at);
 					if (decision.by) log(`Enchufe ${shellyId ?? from}: orden firmada por ${decision.by}`);
@@ -430,16 +517,75 @@ export function startRelay({
 				return plug.send(decision.toPlug);
 			}
 			if (decision.why) log(`Enchufe ${shellyId ?? from}: ${decision.why}`);
-			if (decision.toSeilide) up.send(decision.toSeilide);
-		});
+			if (decision.toSeilide) toSeilide(decision.toSeilide);
+		};
+		function connectUp() {
+			const ws = new WebSocket(`${upstream}${token}`, {
+				headers: { 'x-api-key': key },
+				maxPayload: MAX_PAYLOAD
+			});
+			up = ws;
+			ws.on('open', () => {
+				if (ended) return ws.terminate();
+				const again = upOpened;
+				upOpened = true;
+				upTries = 0;
+				if (!again) for (const text of early.splice(0)) ws.send(text);
+				else {
+					log(`Enchufe ${shellyId ?? from}: otra vez con Seilide`);
+					// Its whole state, as on connecting: Seilide gets no other NotifyFullStatus.
+					void plugCall('Shelly.GetStatus')
+						.then((status) => {
+							if (up === ws && ws.readyState === WebSocket.OPEN)
+								ws.send(
+									JSON.stringify({
+										src: shellyId,
+										dst: 'seilide',
+										method: 'NotifyFullStatus',
+										params: status
+									})
+								);
+						})
+						.catch(() => {});
+				}
+			});
+			ws.on('message', fromSeilide);
+			ws.on('error', (err) => {
+				if (upTries === 0) log(`Enchufe ${shellyId ?? from}, sin Seilide: ${err.message}`);
+			});
+			ws.on('close', () => {
+				if (ended || up !== ws) return;
+				up = null;
+				const wait = Math.min(UP_RETRY_MAX_MS, upRetryMs * 2 ** upTries++);
+				upTimer = setTimeout(connectUp, wait);
+			});
+		}
+		connectUp();
 		plug.on('close', end);
-		up.on('close', end);
 		plug.on('error', end);
-		up.on('error', (err) => {
-			log(`Enchufe ${from}, sin Seilide: ${err.message}`);
-			end();
-		});
 	});
 
-	return { close: () => (server.close(), http.close()) };
+	return {
+		/** Who hears its plugs' cycles (#651: the rules), once it exists. */
+		onCycle(fn: (shellyId: string, event: CycleEvent) => void) {
+			cycleListener = fn;
+		},
+		/** Whether that plug has come through here (#651: its rules said by voice). */
+		hasPlug: (shellyId: string) => seenPlugs.has(shellyId),
+		/**
+		 * A rule of its switches that plug here (#651, phase 3), with its own timer to go back
+		 * (`toggle_after`), without Seilide. Throws if it is not connected or too many changes.
+		 */
+		async switchPlug(shellyId: string, on: boolean, minutes: number | null) {
+			const c = live.get(shellyId);
+			if (!c || c.plug.readyState !== WebSocket.OPEN) throw new Error('no está conectado');
+			if (!c.change()) throw new Error('demasiadas órdenes en un minuto');
+			await c.call('Switch.Set', {
+				id: SWITCH_ID,
+				on,
+				...(minutes ? { toggle_after: Math.min(minutes * 60, MAX_TOGGLE_S) } : {})
+			});
+		},
+		close: () => (clearInterval(ticker), server.close(), http.close())
+	};
 }

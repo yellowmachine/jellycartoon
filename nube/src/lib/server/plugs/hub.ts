@@ -62,7 +62,7 @@ export interface HubDeps {
 	save(
 		familyId: string,
 		plugId: string,
-		patch: SwitchState & { deviceId?: string; model?: string; ip?: string }
+		patch: SwitchState & { deviceId?: string; model?: string; ip?: string; satellite?: string }
 	): Promise<void>;
 	/** What it used in that hour, added. */
 	addEnergy(familyId: string, plugId: string, hour: Date, wh: number): Promise<void>;
@@ -315,6 +315,9 @@ export function createHub(deps: HubDeps) {
 				auto: state?.auto === true
 			});
 			tell(c.plug.familyId);
+			// Kept (#651): its rules go to that satellite, also while it is not connected.
+			if (typeof state?.satellite === 'string')
+				await deps.save(c.plug.familyId, plugId, { satellite: state.satellite });
 		} catch (e) {
 			if (!(e instanceof PlugOffline)) log(`${plugId}: sin estado del satélite`, e);
 		}

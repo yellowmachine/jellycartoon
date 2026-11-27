@@ -34,6 +34,7 @@ import {
 	satellitesOf,
 	searchPlugs
 } from '#lib/server/plugs/setup.ts';
+import { offerSignedRules, satelliteRulesState } from '#lib/server/plugs/satellite-rules.ts';
 import { isPlugKind, MAX_ON_HOURS, MAX_PLUG_NAME, plugAddress, TIMER_MINUTES } from '#lib/plugs.ts';
 
 /** Enchufes (#396): the family's smart plugs, on and off, and what they use. */
@@ -52,7 +53,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 		pages: satellites.flatMap((s) => {
 			const url = satellitePage(s.id);
 			return url ? [{ satellite: s.name, url }] : [];
-		})
+		}),
+		/** The plug rules each satellite can do by itself (#651), and what to sign for it. */
+		satelliteRules: satellites.length
+			? await satelliteRulesState(await kitchenOf(locals.user!.id))
+			: []
 	};
 };
 
@@ -263,6 +268,33 @@ export const actions: Actions = {
 		return { unscheduled: true, sign: await signFor(locals.user!.id, id) };
 	},
 	/** The schedules a device signed (#643), done by its satellite. */
+	/** A satellite's plug rules, signed by this device (#651): offered to it at once. */
+	signRules: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		let signed: { envelope?: unknown; sig?: unknown };
+		try {
+			signed = JSON.parse(String(form.get('signed') ?? ''));
+		} catch {
+			signed = {};
+		}
+		// A whole list: larger than one order (up to MAX_SATELLITE_RULES rules).
+		if (
+			typeof signed.envelope !== 'string' ||
+			typeof signed.sig !== 'string' ||
+			signed.envelope.length > 64_000 ||
+			signed.sig.length > 200
+		)
+			return fail(400, { rulesProblem: id, problem: 'Falta la firma' });
+		const problem = await offerSignedRules(
+			(await kitchenOf(locals.user!.id)).familyId,
+			id,
+			signed.envelope,
+			signed.sig
+		);
+		if (problem) return fail(409, { rulesProblem: id, problem });
+		return { rulesSigned: id };
+	},
 	applySchedules: async ({ request, locals }) => {
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');

@@ -365,9 +365,12 @@ describe('the relay', () => {
 		await new Promise((r) => setTimeout(r, 50));
 		expect(toPlug.map((t) => JSON.parse(t).method)).toEqual(['Switch.Set']);
 
-		// Seilide gone: the plug's connection too, so that it tries again by itself.
-		const closed = new Promise((resolve) => plug.on('close', resolve));
+		// Seilide gone (#651): the plug stays with the satellite, which tries Seilide again.
 		up.ws.close();
+		await new Promise((r) => setTimeout(r, 50));
+		expect(plug.readyState).toBe(WebSocket.OPEN);
+		const closed = new Promise((resolve) => plug.on('close', resolve));
+		plug.close();
 		await closed;
 		open.close();
 	});
@@ -444,6 +447,98 @@ describe('the relay', () => {
 				)
 		).toBe(true);
 		plug.close();
+		open.close();
+	});
+
+	test('a cycle of its appliance, read from its watts on the way up (#651)', async () => {
+		let t = 0;
+		const cycles: string[] = [];
+		const open = startRelay({
+			port: relayPort + 3,
+			upstream: `ws://127.0.0.1:${seilidePort}/api/enchufe/`,
+			key: 'k',
+			trust,
+			log: () => {},
+			fromHome: () => true,
+			onCycle: (id, e) => cycles.push(`${id} ${e}`),
+			now: () => t
+		});
+		const atSeilide = new Promise<WebSocket>((resolve) =>
+			seilide.once('connection', (ws) => resolve(ws))
+		);
+		const up: string[] = [];
+		const plug = new WebSocket(`ws://127.0.0.1:${relayPort + 3}/enchufe/${'b'.repeat(43)}`);
+		await new Promise((resolve) => plug.on('open', resolve));
+		const ws = await atSeilide;
+		ws.on('message', (m) => up.push(String(m)));
+		const watts = (apower: number) =>
+			JSON.stringify({ src: PLUG, method: 'NotifyStatus', params: { 'switch:0': { apower } } });
+		const at = async (ms: number, w: number) => {
+			t = ms;
+			plug.send(watts(w));
+			await new Promise((r) => setTimeout(r, 30));
+		};
+		await at(0, 1800);
+		// Six minutes washing: a cycle, not a blip.
+		await at(6 * 60_000, 1700);
+		expect(cycles).toEqual([`${PLUG} started`]);
+		await at(7 * 60_000, 1);
+		// Idle more than three minutes after it: finished.
+		await at(11 * 60_000, 0);
+		expect(cycles).toEqual([`${PLUG} started`, `${PLUG} finished`]);
+		// And Seilide got all it said, as it is.
+		expect(up).toHaveLength(4);
+		plug.close();
+		open.close();
+	});
+
+	test('without Seilide, the plug stays; back, Seilide gets its whole state (#651)', async () => {
+		const open = startRelay({
+			port: relayPort + 4,
+			upstream: `ws://127.0.0.1:${seilidePort}/api/enchufe/`,
+			key: 'k',
+			trust,
+			log: () => {},
+			fromHome: () => true,
+			upRetryMs: 50
+		});
+		// Once its first frame is up: the satellite has seen Seilide's side open.
+		const first = new Promise<WebSocket>((resolve) =>
+			seilide.once('connection', (ws) => ws.once('message', () => resolve(ws)))
+		);
+		const plug = new WebSocket(`ws://127.0.0.1:${relayPort + 4}/enchufe/${'c'.repeat(43)}`);
+		// The plug answers its status, as a Shelly does.
+		plug.on('message', (m) => {
+			const f = JSON.parse(String(m)) as { id: number; method: string };
+			if (f.method === 'Shelly.GetStatus')
+				plug.send(
+					JSON.stringify({ id: f.id, src: PLUG, result: { 'switch:0': { output: true } } })
+				);
+		});
+		await new Promise((resolve) => plug.on('open', resolve));
+		plug.send(JSON.stringify({ src: PLUG, method: 'NotifyFullStatus', params: {} }));
+		const up = await first;
+		const second = new Promise<{ ws: WebSocket; first: string }>((resolve) =>
+			seilide.once('connection', (ws) =>
+				ws.once('message', (m) => resolve({ ws, first: String(m) }))
+			)
+		);
+		// Seilide goes (no internet): the plug is not closed.
+		up.terminate();
+		await new Promise((r) => setTimeout(r, 30));
+		expect(plug.readyState).toBe(WebSocket.OPEN);
+		const back = await second;
+		expect(JSON.parse(back.first)).toEqual({
+			src: PLUG,
+			dst: 'seilide',
+			method: 'NotifyFullStatus',
+			params: { 'switch:0': { output: true } }
+		});
+		expect(plug.readyState).toBe(WebSocket.OPEN);
+		// And when the plug goes, Seilide's side with it.
+		const closed = new Promise((resolve) => back.ws.on('close', resolve));
+		plug.close();
+		await closed;
 		open.close();
 	});
 

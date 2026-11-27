@@ -10,6 +10,15 @@ import {
 	text,
 	timestamp
 } from 'drizzle-orm/pg-core';
+import type { SatelliteRule } from 'comun/plug-rules.ts';
+
+/** As offered to a satellite (#651): its version, the rules, and who signed them. */
+export interface OfferedPlugRules {
+	version: number;
+	rules: SatelliteRule[];
+	envelope?: string;
+	sig?: string;
+}
 import { family, familyRows } from './family.schema.ts';
 
 /**
@@ -79,6 +88,15 @@ export const voiceSatellite = pgTable(
 		languages: jsonb('languages').$type<string[]>().notNull().default(['es']),
 		/** The one it answers in, among them; `auto`, as it is spoken to. */
 		answerLanguage: text('answer_language').notNull().default('es'),
+		/** Its own key's fingerprint (#643), as its beat says: its plugs say it too. */
+		trustFp: text('trust_fp'),
+		/**
+		 * The plug rules offered to it (#651): the list, and a device's signature (none, said to it);
+		 * it takes them only signed, or right after it heard an order. Null, none yet.
+		 */
+		plugRules: jsonb('plug_rules').$type<OfferedPlugRules>(),
+		/** The version of them it says it keeps, in its beat: 0, none. */
+		plugRulesKept: integer('plug_rules_kept').notNull().default(0),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
 		lastSeenAt: timestamp('last_seen_at')
 	},

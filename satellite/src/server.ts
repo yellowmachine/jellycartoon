@@ -1,3 +1,5 @@
+import type { OfferedRules } from './rules.ts';
+import type { PlugGuard, RuleDone } from '../../packages/comun/src/plug-rules.ts';
 import {
 	assistantTurn,
 	HEARING_KEY_HEADER,
@@ -76,6 +78,23 @@ export class ServerError extends Error {
 	}
 }
 
+/**
+ * Its clock, checked against Seilide's (#651): an answer's `Date` within CLOCK_SKEW_MS of its own,
+ * since it started. A Pi has no clock with a battery: after a power cut without internet it starts
+ * at the time it went off, and its rules at a time must wait until this.
+ */
+const CLOCK_SKEW_MS = 2 * 60_000;
+let clockChecked = false;
+export const clockOk = () => clockChecked;
+function noteServerTime(date: string | null) {
+	const at = date ? Date.parse(date) : NaN;
+	if (!Number.isFinite(at)) return;
+	const ok = Math.abs(Date.now() - at) <= CLOCK_SKEW_MS;
+	if (ok !== clockChecked)
+		console.log(ok ? 'Hora comprobada con Seilide' : 'La hora no cuadra con la de Seilide');
+	clockChecked = ok;
+}
+
 async function request(
 	path: string,
 	body: Uint8Array | string,
@@ -91,9 +110,16 @@ async function request(
 			? AbortSignal.any([AbortSignal.timeout(timeout), extra.signal])
 			: AbortSignal.timeout(timeout)
 	});
+	noteServerTime(res.headers.get('date'));
 	if (!res.ok)
 		throw new ServerError(`${path}: ${res.status} ${(await res.text()).slice(0, 200)}`, res.status);
 	return res;
+}
+
+/** What its plug rules did, or why not (#651): to Seilide, which keeps it and tells. */
+export async function reportRules(done: RuleDone[]) {
+	if (!serverReady) throw new Error('sin servidor');
+	await request('/api/satelite/reglas', JSON.stringify({ done }), 'application/json');
 }
 
 async function post<T>(path: string, body: Uint8Array | string, type: string): Promise<T> {
@@ -213,6 +239,10 @@ export interface Ringing {
 	hearing?: DirectHearing | null;
 	/** Seilide's (#396): smart plugs to find or set up in the home's network. */
 	plugTasks?: PlugTask[];
+	/** Seilide's (#651): the plug rules for it to keep, signed or said here; null, none offered. */
+	plugRules?: OfferedRules | null;
+	/** Seilide's (#651): what stops each plug's rules (padlock, pause, long heat), by its Shelly id. */
+	plugGuards?: Record<string, PlugGuard>;
 }
 
 /** After a dropped channel, tried again this long after. */
@@ -302,16 +332,22 @@ export async function answerCompanion(wav: Uint8Array) {
  * Every minute, a beat to Seilide (#469): there, for «Compañía». With it, the address of its page
  * of devices (#643), for Enchufes' link. Never fails.
  */
-export function startBeats(page: () => string | null = () => null) {
-	if (!serverReady) return;
+export function startBeats(
+	page: () => string | null = () => null,
+	/** Its fingerprint and the plug rules' version it keeps (#651), for Seilide to know. */
+	more: () => { fp?: string; reglas?: number } = () => ({})
+) {
+	if (!serverReady) return () => {};
 	const beat = () =>
 		void request(
 			'/api/satelite/latido',
-			JSON.stringify({ alta: page() ?? undefined }),
+			JSON.stringify({ alta: page() ?? undefined, ...more() }),
 			'application/json'
 		).catch((err) =>
 			console.error(`Sin latido: ${err instanceof Error ? err.message : String(err)}`)
 		);
 	beat();
 	setInterval(beat, 60_000).unref();
+	/** One now: Seilide learns at once that the rules were taken. */
+	return beat;
 }

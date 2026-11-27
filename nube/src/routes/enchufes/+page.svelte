@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AltaAparato from '#lib/components/AltaAparato.svelte';
+	import ReglasSatelite from '#lib/components/ReglasSatelite.svelte';
 	import EnchufesTabs from '#lib/components/EnchufesTabs.svelte';
 	import { signedSwitch, signOrder, trusted, type SatelliteTrust } from '#lib/enchufes/firma.ts';
 	import { deserialize, enhance, type SubmitFunction } from '$app/forms';
@@ -176,6 +177,8 @@
 {#if data.satellites && plugs.some((p) => p.relayed)}
 	<AltaAparato {devices} enrolment={data.enrolment} pages={data.pages} onchange={loadDevices} />
 {/if}
+
+<ReglasSatelite states={data.satelliteRules} {devices} />
 
 {#if form && 'address' in form && form.address}
 	{@const a = form.address}
