@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { WebSocket, WebSocketServer } from 'ws';
 import { isHomeIp, RELAY_PATH, RELAY_PORT } from './plugs.ts';
 import type { Trust } from './trust.ts';
+import { PlugWatch, switchReading, type CycleEvent } from '../../packages/comun/src/plug-watch.ts';
 
 /**
  * The plugs through the satellite (#643, phase 1): each Shelly's outbound WebSocket points here, in
@@ -26,6 +27,8 @@ const MAX_TOGGLE_S = 86_400;
 const MAX_PAYLOAD = 64 * 1024;
 /** A plug that does not answer a ping in this long is dropped: Seilide must not see it online. */
 const PING_MS = 30_000;
+/** How often time alone is looked at for each plug's cycle (DONE_MS is minutes). */
+const WATCH_TICK_MS = 30_000;
 
 type Params = Record<string, unknown>;
 
@@ -263,6 +266,11 @@ export interface RelayOptions {
 	fromHome?: (ip: string) => boolean;
 	/** Its other pages (alta.ts), on the same port: true if it answered. */
 	page?: (req: IncomingMessage, res: ServerResponse) => boolean;
+	/**
+	 * A plug's appliance starts or ends a cycle (#651, phase 1), as Seilide's watch reads its watts:
+	 * by its Shelly id, for the rules the satellite keeps.
+	 */
+	onCycle?: (shellyId: string, event: CycleEvent) => void;
 	now?: () => number;
 }
 
@@ -275,8 +283,33 @@ export function startRelay({
 	log,
 	fromHome = isHomeIp,
 	page,
+	onCycle,
 	now = Date.now
 }: RelayOptions) {
+	/**
+	 * Each plug's cycle (#651), by its Shelly id: kept across its reconnections, as Seilide keeps its
+	 * own (plugs/notices.ts). Only the cycle: the notices are still Seilide's.
+	 */
+	const watches = new Map<string, PlugWatch>();
+	const cycleOf = (shellyId: string, events: string[]) => {
+		for (const e of events)
+			if (e === 'started' || e === 'finished') {
+				log(`Enchufe ${shellyId}: ${e === 'started' ? 'empieza un ciclo' : 'acaba un ciclo'}`);
+				onCycle?.(shellyId, e);
+			}
+	};
+	const ticker = setInterval(() => {
+		for (const [id, w] of watches) cycleOf(id, w.tick(now()));
+	}, WATCH_TICK_MS);
+	ticker.unref?.();
+	const watchOf = (shellyId: string) => {
+		let w = watches.get(shellyId);
+		if (!w) {
+			w = new PlugWatch({ done: false, stopped: false, offline: false, onHours: null }, now());
+			watches.set(shellyId, w);
+		}
+		return w;
+	};
 	const http = createServer((req, res) => {
 		const from = (req.socket.remoteAddress ?? '').replace(/^::ffff:/, '');
 		if (fromHome(from) && page?.(req, res)) return;
@@ -366,6 +399,7 @@ export function startRelay({
 		}, PING_MS);
 		const end = () => {
 			clearInterval(pinger);
+			if (shellyId) watches.get(shellyId)?.gone(now());
 			if (plug.readyState === WebSocket.OPEN) plug.close();
 			if (up.readyState === WebSocket.OPEN || up.readyState === WebSocket.CONNECTING)
 				up.terminate();
@@ -399,6 +433,10 @@ export function startRelay({
 				} catch {
 					// Not JSON: passed on as it is; Seilide does not understand it either.
 				}
+			// Its watts, for the cycle: whatever happens with Seilide.
+			const reading = shellyId ? switchReading(text) : null;
+			if (reading)
+				cycleOf(shellyId!, watchOf(shellyId!).seen(reading.power, reading.output, now()));
 			if (up.readyState === WebSocket.OPEN) up.send(text);
 			else early.push(text);
 		});
@@ -441,5 +479,5 @@ export function startRelay({
 		});
 	});
 
-	return { close: () => (server.close(), http.close()) };
+	return { close: () => (clearInterval(ticker), server.close(), http.close()) };
 }

@@ -159,6 +159,11 @@ contesta a Seilide con un error 403 y lo anota en su registro. Así, si alguien 
 podría encender y apagar, pero no meter un script en el enchufe ni llevárselo a otro servidor.
 Shelly no pide contraseña en su WebSocket de salida, por eso la lista es lo que lo protege.
 
+El satélite también lee los vatios que suben (#651): con la misma cuenta que Seilide
+(`comun/plug-watch.ts`), sabe cuándo empieza y acaba un ciclo de cada enchufe («cuando acabe la
+lavadora»), y lo anota en su registro. Es el primer paso para que cumpla él las reglas de enchufes,
+también sin internet.
+
 Al darlo de alta (**Enchufes → Buscar enchufes → Añadir**), el satélite le pone también una
 contraseña suya, para que nadie más en la wifi lo cambie desde su página. Se guarda solo en el
 satélite (`/data/enchufes.json`, en su volumen) y no se manda a Seilide. Los enchufes que ya iban

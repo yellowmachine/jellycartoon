@@ -6,6 +6,7 @@
 !packages/comun/src/wakeword-recorder.ts
 !packages/comun/src/voice.ts
 !packages/comun/src/wake-words.ts
+!packages/comun/src/plug-watch.ts
 !satellite/package.json
 !satellite/bun.lock
 !satellite/src

@@ -447,6 +447,48 @@ describe('the relay', () => {
 		open.close();
 	});
 
+	test('a cycle of its appliance, read from its watts on the way up (#651)', async () => {
+		let t = 0;
+		const cycles: string[] = [];
+		const open = startRelay({
+			port: relayPort + 3,
+			upstream: `ws://127.0.0.1:${seilidePort}/api/enchufe/`,
+			key: 'k',
+			trust,
+			log: () => {},
+			fromHome: () => true,
+			onCycle: (id, e) => cycles.push(`${id} ${e}`),
+			now: () => t
+		});
+		const atSeilide = new Promise<WebSocket>((resolve) =>
+			seilide.once('connection', (ws) => resolve(ws))
+		);
+		const up: string[] = [];
+		const plug = new WebSocket(`ws://127.0.0.1:${relayPort + 3}/enchufe/${'b'.repeat(43)}`);
+		await new Promise((resolve) => plug.on('open', resolve));
+		const ws = await atSeilide;
+		ws.on('message', (m) => up.push(String(m)));
+		const watts = (apower: number) =>
+			JSON.stringify({ src: PLUG, method: 'NotifyStatus', params: { 'switch:0': { apower } } });
+		const at = async (ms: number, w: number) => {
+			t = ms;
+			plug.send(watts(w));
+			await new Promise((r) => setTimeout(r, 30));
+		};
+		await at(0, 1800);
+		// Six minutes washing: a cycle, not a blip.
+		await at(6 * 60_000, 1700);
+		expect(cycles).toEqual([`${PLUG} started`]);
+		await at(7 * 60_000, 1);
+		// Idle more than three minutes after it: finished.
+		await at(11 * 60_000, 0);
+		expect(cycles).toEqual([`${PLUG} started`, `${PLUG} finished`]);
+		// And Seilide got all it said, as it is.
+		expect(up).toHaveLength(4);
+		plug.close();
+		open.close();
+	});
+
 	test('its page, from home only', async () => {
 		const open = startRelay({
 			port: relayPort + 2,
