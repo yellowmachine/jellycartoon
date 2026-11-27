@@ -18,4 +18,5 @@
 !static/wakeword/kusanagi.onnx
 !static/wakeword/makoto.onnx
 !static/wakeword/oye_alizee.onnx
+!static/wakeword/bonjour_alizee.onnx
 !static/wakeword/silero_vad.onnx

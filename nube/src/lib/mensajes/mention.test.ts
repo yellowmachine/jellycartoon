@@ -27,6 +27,7 @@ describe('calling the AI in Mensajes (#555)', () => {
 		expect(askedOf('@casita una tarta', assistantName('hola_casita'))).toBe('una tarta');
 		const alizee = assistantName('oye_alizee');
 		expect(alizee).toBe('Alizée');
+		expect(assistantName('bonjour_alizee')).toBe('Alizée');
 		for (const text of [
 			'@alizee una tarta',
 			'@Alizée una tarta',
