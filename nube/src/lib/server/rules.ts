@@ -56,7 +56,7 @@ import {
 import { DRAFT_ID, simulate, withIfs, type Deduced, type WhatIf } from '#lib/server/rule-sim.ts';
 import { voiceSettings } from '#lib/server/voice/settings.ts';
 import { solarState } from '#lib/server/energy/solar.ts';
-import { PlugOffline } from '#lib/server/plugs/hub.ts';
+import { PlugOffline, PlugRefused } from '#lib/server/plugs/hub.ts';
 import { HEAT_MS, plugsOf, setPausedIn, switchIn } from '#lib/server/plugs/plugs.ts';
 import { sensorsIn } from '#lib/server/plugs/sensors.ts';
 import { PLUG_KINDS } from '#lib/plugs.ts';
@@ -826,7 +826,9 @@ async function switchFor(k: Kitchen, r: Rule, p: RulePlug, why: string) {
 		failed =
 			error instanceof PlugOffline
 				? 'no está conectado'
-				: `no ha contestado (${error instanceof Error ? error.message : error})`;
+				: error instanceof PlugRefused
+					? 'no deja que Seilide lo haga solo (Enchufes → «Seilide puede hacerlo solo»)'
+					: `no ha contestado (${error instanceof Error ? error.message : error})`;
 	}
 	const did = failed
 		? `${why}, pero no he podido: «${p.name}» ${failed}`

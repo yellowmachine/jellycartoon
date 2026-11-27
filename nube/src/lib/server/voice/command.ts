@@ -93,6 +93,7 @@ import {
 	skipByVoice,
 	switchByVoice
 } from '#lib/server/plugs/voice.ts';
+import { deviceEnrolTool, enrolByVoice } from '#lib/server/plugs/setup.ts';
 import { companionAway, companionOn } from '#lib/server/companion.ts';
 import { calls } from '#lib/server/calls.ts';
 import type { Callable } from '#lib/calls.ts';
@@ -1606,6 +1607,12 @@ async function runTool(
 			if (done) ctx.outcome.done++;
 			return result;
 		}
+		case 'device_enrol': {
+			if (!ctx.order.satellite) return 'Solo se abre diciéndoselo a un satélite.';
+			const { result, done } = await enrolByVoice(ctx.k.familyId, ctx.order.satellite);
+			if (done) ctx.outcome.done++;
+			return result;
+		}
 		case 'plug_pause': {
 			const { result, done } = await pauseByVoice(ctx.k, ctx.plugs, args);
 			if (done) ctx.outcome.done++;
@@ -2615,6 +2622,8 @@ export async function runVoiceCommand(
 		...(kid || satellite ? [] : [markDoseTool]),
 		...(kid ? [] : [plannedTripsTool]),
 		...(plugs ? [plugSwitchTool, plugPauseTool, plugSkipTool] : []),
+		// Only to a satellite (#643): it opens its own window, and only having heard it.
+		...(plugs && satellite ? [deviceEnrolTool] : []),
 		...(companion ? [companionAwayTool] : []),
 		...(callable.length ? [callTool(callable), shareLocationTool(callable)] : []),
 		...(k.userId && !satellite && sharing(k.userId) ? [stopSharingTool] : []),

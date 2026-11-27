@@ -32,7 +32,10 @@ let plugAnswer: 'ok' | 'locked' | 'offline' = 'ok';
 const told: { to: string[]; title: string; body: string; url: string }[] = [];
 const memories: string[] = [];
 
-mock.module('#lib/server/plugs/hub.ts', () => ({ PlugOffline }));
+mock.module('#lib/server/plugs/hub.ts', () => ({
+	PlugOffline,
+	PlugRefused: class extends Error {}
+}));
 const pauses: { id: string; paused: boolean }[] = [];
 mock.module('#lib/server/plugs/plugs.ts', () => ({
 	HEAT_MS: 4 * 3_600_000,

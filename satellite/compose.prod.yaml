@@ -34,6 +34,9 @@ services:
       SATELLITE_KEY: ${SATELLITE_KEY:?SATELLITE_KEY is required}
       SPEAKER: ${SPEAKER:-}
       PLUG_PORT: ${PLUG_PORT:-8790}
+      # Optional (#643): its page /alta opens the window to give a device with it, as «añade un
+      # aparato» said to it. Only here, never in Seilide: not SATELLITE_KEY, which goes there.
+      ALTA_CLAVE: ${ALTA_CLAVE:-}
       # The house's music (its snapserver, said by Seilide) on another device than the voice's.
       SNAPCLIENT_SOUNDCARD: ${SNAPCLIENT_SOUNDCARD:-}
     volumes:

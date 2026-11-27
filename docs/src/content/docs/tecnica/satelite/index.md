@@ -53,6 +53,7 @@ Se actualiza solo: WUD mira cada noche (a las 4:30, `UPDATE_CRON`) si hay versi�
 | `WAKE_EARLY_MS`            | `300`               | Con este silencio manda ya lo dicho a oír, sin esperar al final, y contesta antes; `0`, no.                                                                                                                                |
 | `BARGE_IN`                 | `0`                 | `1`: también oye la palabra mientras piensa o contesta, y le corta para oír la nueva orden (#373). Solo con un micrófono que cancele el eco (un reSpeaker XVF3800, con el altavoz en su salida): si no, se oye a sí mismo. |
 | `PLUG_PORT`                | `8790`              | El puerto donde se conectan los enchufes Shelly ([por el satélite](#los-enchufes-por-el-satélite)). En la red de casa; no se publica fuera.                                                                                |
+| `ALTA_CLAVE`               | (vacía)             | Opcional: con ella, su página `/alta` abre el alta de aparatos, como «añade un aparato». Solo en el satélite, nunca en Seilide.                                                                                            |
 | `TZ`                       | `Europe/Madrid`     | Su hora.                                                                                                                                                                                                                   |
 | `COMPOSE_PROFILES`         | (vacío)             | `dns` en uno solo de los satélites: el [DNS de la casa](#el-dns-de-la-casa-adguard-home).                                                                                                                                  |
 | `WUD_PASSWORD`             | (obligatoria)       | La de WUD, que lo actualiza: `openssl rand -hex 16`.                                                                                                                                                                       |
@@ -103,7 +104,33 @@ Shelly no pide contraseña en su WebSocket de salida, por eso la lista es lo que
 Al darlo de alta (**Enchufes → Buscar enchufes → Añadir**), el satélite le pone también una
 contraseña suya, para que nadie más en la wifi lo cambie desde su página. Se guarda solo en el
 satélite (`/data/enchufes.json`, en su volumen) y no se manda a Seilide. Los enchufes que ya iban
-directos a Seilide lo dicen en su tarjeta, con **Pasar al satélite**.
+directos a Seilide lo dicen en su tarjeta, con **Pasar al satélite**. Con un satélite en la familia,
+no hay forma de añadir un enchufe a mano, directo a Seilide.
+
+### Órdenes firmadas por aparato (fase 2)
+
+Lo que cambia un enchufe (encender, apagar, el temporizador, los horarios, la hora) necesita además
+la firma de un aparato dado de alta en el satélite. Sin firma, solo baja en los enchufes con el
+permiso **«Seilide puede hacerlo solo»** (horarios, reglas, voz, pausa), que también se cambia con
+una orden firmada. Leer el estado baja siempre. Además, como mucho 30 órdenes por minuto y enchufe.
+
+- **El aparato**: el navegador crea su par de claves ECDSA P-256 con WebCrypto, con la privada no
+  exportable, en su IndexedDB (`seilide-enchufes`). Cada orden es un JSON con el satélite, el
+  aparato, el enchufe (su id de Shelly), el método, sus parámetros, la hora y un nonce. El aparato
+  la firma y Seilide la pasa tal cual (`Satelite.Firmada`). El satélite comprueba la firma, que sea
+  para él y para ese enchufe, que tenga menos de 2 minutos y que no la haya visto antes. Luego
+  aplica la misma lista de siempre.
+- **El alta**: «añade un aparato», dicho al satélite (solo vale si acaba de oír él mismo una orden),
+  o la `ALTA_CLAVE` en su página, abre el alta 5 minutos. En el móvil, dentro de la wifi, se abre
+  `http://<IP-del-satélite>:8790/alta`, se copia el código y se pega en **Enchufes → Este aparato**.
+  El código no sale del móvil. A Seilide solo va la clave pública con un HMAC hecho con el código.
+  El satélite contesta firmado, y el móvil comprueba esa firma con la huella que va en el código.
+- **Lo que guarda el satélite** (`/data/seguridad.json`): su propia clave, los aparatos y los
+  permisos. La página `/alta` los lista. Quitar un aparato solo se puede con el alta abierta.
+
+Lo que no cubre: el JavaScript de la app lo sirve Seilide. Un Seilide hackeado podría servir uno que
+firme órdenes con la clave del aparato mientras la app está abierta. Por eso los límites los pone
+el satélite, y no el aparato.
 
 El satélite tiene que estar en la misma red que los enchufes. Conviene darle una IP fija (una reserva
 en el router), porque los enchufes guardan esa IP.

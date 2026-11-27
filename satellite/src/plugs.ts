@@ -286,6 +286,7 @@ export async function doPlugTask(
 ): Promise<PlugTaskResult> {
 	try {
 		if (task.kind === 'buscar') return { id: task.id, found: await findPlugs(allowed) };
+		if (task.kind !== 'configurar') return { id: task.id, problem: 'No es una tarea de enchufes' };
 		await setUpPlug(task, allowed, ownAddress);
 		return { id: task.id };
 	} catch (err) {

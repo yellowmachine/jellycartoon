@@ -19,6 +19,7 @@ import {
 	followAlarms,
 	hearEarly,
 	plugAddressStart,
+	orderAgo,
 	reportPlugTask,
 	sendOrder,
 	serverName,
@@ -34,7 +35,9 @@ import { beep, hush, play, speakerName } from './sound.ts';
 import { fallbackFor, greeting, keepFallbacks, sayFallback } from './fallback.ts';
 import { followSnapserver } from './snapclient.ts';
 import { doPlugTask } from './plugs.ts';
+import { altaPage, doEnrolTask, passwordGate } from './alta.ts';
 import { startRelay } from './relay.ts';
+import { createTrust } from './trust.ts';
 import {
 	DEFAULT_WAKE_WORD,
 	isWakeWord,
@@ -680,9 +683,18 @@ if (serverReady)
 
 startBeats();
 
-// The plugs through the satellite (#643): their WebSocket here, on to Seilide.
+/** Who may order the plugs (#643): the devices given here, and the plugs Seilide may switch alone. */
+const trust = createTrust(process.env.TRUST_FILE ?? '/data/seguridad.json');
+
+// The plugs through the satellite (#643): their WebSocket here, on to Seilide; and its page /alta.
 if (serverReady && plugAddressStart && process.env.SATELLITE_KEY)
-	startRelay({ upstream: plugAddressStart, key: process.env.SATELLITE_KEY, log });
+	startRelay({
+		upstream: plugAddressStart,
+		key: process.env.SATELLITE_KEY,
+		trust,
+		log,
+		page: altaPage(trust, passwordGate(process.env.ALTA_CLAVE || null))
+	});
 
 /** The plug tasks taken already (#396), by their id: not again while the server still sends them. */
 const plugTasksTaken = new Set<string>();
@@ -692,6 +704,17 @@ function doPlugTasks(tasks: PlugTask[]) {
 	for (const task of tasks) {
 		if (plugTasksTaken.has(task.id)) continue;
 		plugTasksTaken.add(task.id);
+		const enrol = doEnrolTask(task, trust, orderAgo);
+		if (enrol) {
+			log(
+				task.kind === 'abrir-alta'
+					? `Alta de aparatos: ${enrol.problem ?? `abierta en ${enrol.url ?? 'su página'}`}`
+					: `Alta de un aparato: ${enrol.problem ?? 'hecha'}`
+			);
+			void reportPlugTask(enrol).catch(() => {});
+			continue;
+		}
+		if (task.kind !== 'buscar' && task.kind !== 'configurar') continue;
 		log(task.kind === 'buscar' ? 'Busca enchufes' : `Configura el enchufe ${task.deviceId}`);
 		void doPlugTask(task, plugAddressStart)
 			.then((result) => {

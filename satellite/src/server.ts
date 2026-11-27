@@ -114,6 +114,10 @@ export async function speech(text: string, { chime = false } = {}) {
 let history: VoiceTurn[] = [];
 let lastAt = 0;
 
+/** When it last sent Seilide an order it heard itself: «añade un aparato» counts only then (#643). */
+let orderSentAt = 0;
+export const orderAgo = () => Date.now() - orderSentAt;
+
 /**
  * One of the phrases said while the AI thinks («Vale», Ajustes → Casa), as `speech`'s: a WAV, or
  * null if the server said it through Snapcast (at once) or there are none.
@@ -162,6 +166,7 @@ export async function sendOrder(
 		(await post<{ text: string }>('/api/voice/transcribe', wav, 'audio/wav')).text;
 	if (!text?.trim()) return null;
 	onHeard?.(text);
+	orderSentAt = Date.now();
 	if (Date.now() - lastAt > HISTORY_IDLE_MS) history = [];
 	const reply = await post<VoiceReply>(
 		'/api/voice/command',

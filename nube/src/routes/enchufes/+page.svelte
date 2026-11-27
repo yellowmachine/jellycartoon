@@ -1,5 +1,7 @@
 <script lang="ts">
+	import AltaAparato from '#lib/components/AltaAparato.svelte';
 	import EnchufesTabs from '#lib/components/EnchufesTabs.svelte';
+	import { signedSwitch, signOrder, trusted, type SatelliteTrust } from '#lib/enchufes/firma.ts';
 	import { enhance } from '$app/forms';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import {
@@ -33,6 +35,15 @@
 		events.onmessage = (e) => (live = JSON.parse(e.data));
 		return () => events.close();
 	});
+
+	/** The satellites this device is given to (#643): it signs its orders for their plugs. */
+	let devices = $state<SatelliteTrust[]>([]);
+	const loadDevices = () => void trusted().then((d) => (devices = d));
+	$effect(loadDevices);
+	const canSign = (p: PlugView) =>
+		p.relayed && p.satellite !== null && devices.some((d) => d.fp === p.satellite);
+	/** Through a satellite that lets nothing unsigned down, and this device cannot sign: not here. */
+	const needsDevice = (p: PlugView) => p.relayed && !p.auto && !canSign(p);
 
 	/** The one being sent an order, and the one being changed. */
 	let busy = $state<string | null>(null);
@@ -114,6 +125,10 @@
 	<p class="mb-4 rounded-md bg-red-950 px-3 py-2 text-sm text-red-200">{form.problem}</p>
 {/if}
 
+{#if data.satellites && plugs.some((p) => p.relayed)}
+	<AltaAparato {devices} enrolment={data.enrolment} onchange={loadDevices} />
+{/if}
+
 {#if form && 'address' in form && form.address}
 	{@const a = form.address}
 	<section class="{section} border-amber-500/50">
@@ -168,8 +183,11 @@
 						method="post"
 						action="?/switch"
 						class="min-w-0 flex-1"
-						use:enhance={() => {
+						use:enhance={async ({ formData }) => {
 							busy = p.id;
+							// Through its satellite (#643): signed here, if this device is given to it.
+							const signed = await signedSwitch(p, !on);
+							if (signed) formData.set('signed', signed);
 							return async ({ update }) => {
 								await update();
 								busy = null;
@@ -179,7 +197,10 @@
 						<input type="hidden" name="id" value={p.id} />
 						<input type="hidden" name="on" value={String(!on)} />
 						<button
-							disabled={!p.online || p.paused || p.locked || busy === p.id}
+							disabled={!p.online || p.paused || p.locked || needsDevice(p) || busy === p.id}
+							title={needsDevice(p)
+								? 'Su satélite solo obedece a los aparatos dados de alta: da de alta este arriba'
+								: undefined}
 							class="flex w-full items-center gap-4 rounded-lg text-left disabled:cursor-not-allowed"
 							aria-label="{on ? 'Apagar' : 'Encender'} {p.name}"
 						>
@@ -259,13 +280,57 @@
 						✓ Hecho: se reinicia y vuelve a conectarse por el satélite en unos segundos.
 					</p>
 				{/if}
-				{#if canTime(p)}
+				{#if p.relayed}
+					<!-- Whether Seilide may do it alone (#643): kept by its satellite, changed only signed. -->
+					<form
+						method="post"
+						action="?/permit"
+						class="mt-3 flex flex-wrap items-center gap-2 text-sm"
+						use:enhance={async ({ formData, cancel }) => {
+							const order =
+								p.satellite && p.deviceId
+									? await signOrder(p.satellite, p.deviceId, 'Satelite.Permiso', { auto: !p.auto })
+									: null;
+							if (!order) return cancel();
+							formData.set('signed', JSON.stringify(order));
+							busy = p.id;
+							return async ({ update }) => {
+								await update();
+								busy = null;
+							};
+						}}
+					>
+						<input type="hidden" name="id" value={p.id} />
+						<span class={p.auto ? 'text-zinc-300' : 'text-zinc-400'}
+							>{p.auto
+								? '🤖 Seilide puede hacerlo solo: horarios, reglas, voz'
+								: '🔐 Solo con un aparato dado de alta'}</span
+						>
+						{#if canSign(p)}
+							<button
+								disabled={busy === p.id}
+								class="rounded-full bg-zinc-800 px-3 py-1 text-zinc-200 hover:bg-zinc-700"
+								>{p.auto ? 'Quitárselo' : 'Dejar que lo haga solo'}</button
+							>
+						{/if}
+					</form>
+					{#if form && 'permitProblem' in form && form.permitProblem === p.id}
+						<p class="mt-2 text-sm text-red-300">{form.problem}</p>
+					{/if}
+				{/if}
+				{#if canTime(p) && !needsDevice(p)}
 					<!-- Its timer (#396): the plug's own, so it happens without Seilide. -->
 					<form
 						method="post"
 						action="?/timer"
-						use:enhance={() => {
+						use:enhance={async ({ formData }) => {
 							busy = p.id;
+							// Signed as the server will do it (#643): «Quitar», as it is; a timer, on and back.
+							const minutes = Number(formData.get('minutes') ?? 0);
+							const signed = minutes
+								? await signedSwitch(p, true, minutes * 60)
+								: await signedSwitch(p, p.output === true);
+							if (signed) formData.set('signed', signed);
 							return async ({ update }) => {
 								await update();
 								busy = null;
@@ -329,6 +394,12 @@
 					</dl>
 
 					<div class="mt-4 border-t border-zinc-800 pt-3 text-sm">
+						{#if p.relayed && !p.auto}
+							<p class="mb-2 text-xs text-zinc-500">
+								Los horarios, la pausa, las reglas y la voz los pone Seilide solo: con este enchufe,
+								solo si le dejas hacerlo solo.
+							</p>
+						{/if}
 						{#if p.schedules.length}
 							<ul class="mb-2 space-y-1">
 								{#each p.schedules as sch (sch.id)}
@@ -769,11 +840,6 @@
 				Listo: el enchufe se está reiniciando y sale conectado en unos segundos.
 			</p>
 		{/if}
-
-		<details class="mt-4 text-sm">
-			<summary class="cursor-pointer text-zinc-400">Añadirlo a mano, con su dirección</summary>
-			<div class="mt-3">{@render byHand()}</div>
-		</details>
 	</section>
 {:else}
 	<section class={section}>

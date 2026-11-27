@@ -215,8 +215,21 @@ describe('hub', () => {
 		] as const) {
 			const { hub } = setup();
 			const ws = new FakePlug();
+			ws.answer = null;
 			await hub.attach('tok', ws, key);
-			expect(hub.liveOf('p1')).toMatchObject({ online: true, relayed });
+			if (relayed) {
+				// Its satellite asked what it allows (#643).
+				const ask = ws.sent.find((f) => f.method === 'Satelite.Estado');
+				expect(ask).toBeTruthy();
+				ws.say(JSON.stringify({ id: ask!.id, result: { satellite: 'huella', auto: true } }));
+				await new Promise((r) => setTimeout(r, 10));
+			}
+			expect(hub.liveOf('p1')).toMatchObject({
+				online: true,
+				relayed,
+				satellite: relayed ? 'huella' : null,
+				auto: relayed
+			});
 			ws.close();
 			expect(hub.liveOf('p1')).toMatchObject({ online: false, relayed: false });
 		}
@@ -287,7 +300,9 @@ describe('hub', () => {
 			output: false,
 			power: 0,
 			timerUntil: null,
-			relayed: false
+			relayed: false,
+			satellite: null,
+			auto: false
 		});
 		expect(saved.some((s) => s.patch.output === false && s.patch.energyWh === 10)).toBe(true);
 	});
@@ -365,7 +380,9 @@ describe('hub', () => {
 			output: true,
 			power: 5,
 			timerUntil: null,
-			relayed: false
+			relayed: false,
+			satellite: null,
+			auto: false
 		});
 		expect(saved).toEqual([{ plugId: 'p1', patch: { output: true, power: undefined } }]);
 
