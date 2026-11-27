@@ -216,7 +216,16 @@ export function createTrust(file: string, now: () => number = Date.now) {
 		 * A device's signed order: for that plug, or, with `ANY_PLUG`, about the satellite itself
 		 * (`Satelite.Olvidar`), which names no plug.
 		 */
-		check(text: string, sig: string, shellyId: string | null | typeof ANY_PLUG) {
+		check(
+			text: string,
+			sig: string,
+			shellyId: string | null | typeof ANY_PLUG,
+			/**
+			 * False for a whole state, the plug rules (#651): it may come late (the satellite was off),
+			 * so neither its time nor its nonce count; what guards it is its version, which only goes up.
+			 */
+			{ fresh = true }: { fresh?: boolean } = {}
+		) {
 			let e: Envelope;
 			try {
 				e = JSON.parse(text) as Envelope;
@@ -231,13 +240,15 @@ export function createTrust(file: string, now: () => number = Date.now) {
 			const device = saved.devices.find((d) => d.fp === e.dev);
 			if (!device) return { ok: false as const, why: 'el aparato no está dado de alta' };
 			const at = now();
-			if (typeof e.ts !== 'number' || Math.abs(at - e.ts) > ORDER_SKEW_MS)
-				return { ok: false as const, why: 'orden caducada: mira la hora del aparato' };
-			for (const [n, until] of seen) if (until < at) seen.delete(n);
-			if (seen.has(e.nonce)) return { ok: false as const, why: 'orden repetida' };
+			if (fresh) {
+				if (typeof e.ts !== 'number' || Math.abs(at - e.ts) > ORDER_SKEW_MS)
+					return { ok: false as const, why: 'orden caducada: mira la hora del aparato' };
+				for (const [n, until] of seen) if (until < at) seen.delete(n);
+				if (seen.has(e.nonce)) return { ok: false as const, why: 'orden repetida' };
+			}
 			if (!verifies(keyOf(device.spki), text, sig))
 				return { ok: false as const, why: 'la firma no vale' };
-			seen.set(e.nonce, at + 2 * ORDER_SKEW_MS);
+			if (fresh) seen.set(e.nonce, at + 2 * ORDER_SKEW_MS);
 			return {
 				ok: true as const,
 				method: e.method,

@@ -164,6 +164,21 @@ El satélite también lee los vatios que suben (#651): con la misma cuenta que S
 lavadora»), y lo anota en su registro. Es el primer paso para que cumpla él las reglas de enchufes,
 también sin internet.
 
+### Las reglas de enchufes, en el satélite (#651)
+
+Las reglas que el satélite puede mirar él solo (encender o apagar un enchufe suyo cada día a una
+hora, un día a una hora, o cuando un enchufe suyo empieza o acaba un ciclo, sin condiciones) las
+guarda en `/data/reglas.json` (`satellite/src/rules.ts`). Seilide se las ofrece como una lista
+entera, con una versión que solo sube (`comun/plug-rules.ts`), en sus avisos:
+
+- **Firmada** por un aparato dado de alta en él (**Enchufes → Reglas en los satélites → Firmar**,
+  `Satelite.Reglas`): la toma aunque llegue tarde, porque lo que la protege es su versión, no su hora.
+- **Dicha al propio satélite**, sin firma: solo si acaba de oír él mismo una orden (menos de
+  2 minutos), y solo añadiendo o quitando reglas de sus enchufes, nunca cambiando una que ya tiene.
+
+Con su latido le dice a Seilide su huella y la versión que tiene. Por ahora solo las guarda: las
+sigue cumpliendo Seilide.
+
 Al darlo de alta (**Enchufes → Buscar enchufes → Añadir**), el satélite le pone también una
 contraseña suya, para que nadie más en la wifi lo cambie desde su página. Se guarda solo en el
 satélite (`/data/enchufes.json`, en su volumen) y no se manda a Seilide. Los enchufes que ya iban

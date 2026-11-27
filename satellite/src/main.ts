@@ -37,6 +37,7 @@ import { followSnapserver } from './snapclient.ts';
 import { doPlugTask } from './plugs.ts';
 import { altaPage, doEnrolTask, homeAddress, pageAddress, passwordGate } from './alta.ts';
 import { startRelay } from './relay.ts';
+import { createRules } from './rules.ts';
 import { createTrust } from './trust.ts';
 import {
 	DEFAULT_WAKE_WORD,
@@ -679,25 +680,45 @@ if (serverReady)
 		else void ring();
 		void sayOnce();
 		doPlugTasks(state.plugTasks ?? []);
+		if (state.plugRules) {
+			const r = plugRules.offer(state.plugRules);
+			if (r.why) log(`Reglas de enchufes no tomadas: ${r.why}`);
+			if (r.taken) beatNow();
+		}
 	});
-
-startBeats(() => {
-	const ip = homeAddress();
-	return ip ? pageAddress(ip) : null;
-});
 
 /** Who may order the plugs (#643): the devices given here, and the plugs Seilide may switch alone. */
 const trust = createTrust(process.env.TRUST_FILE ?? '/data/seguridad.json');
 
 // The plugs through the satellite (#643): their WebSocket here, on to Seilide; and its page /alta.
-if (serverReady && plugAddressStart && process.env.SATELLITE_KEY)
-	startRelay({
-		upstream: plugAddressStart,
-		key: process.env.SATELLITE_KEY,
-		trust,
-		log,
-		page: altaPage(trust, passwordGate(process.env.ALTA_CLAVE || null))
-	});
+const relay =
+	serverReady && plugAddressStart && process.env.SATELLITE_KEY
+		? startRelay({
+				upstream: plugAddressStart,
+				key: process.env.SATELLITE_KEY,
+				trust,
+				log,
+				page: altaPage(trust, passwordGate(process.env.ALTA_CLAVE || null))
+			})
+		: null;
+
+/** The plug rules it keeps (#651): signed by a device, or said here. Not done yet (phase 3). */
+const plugRules = createRules({
+	file: process.env.RULES_FILE ?? '/data/reglas.json',
+	trust,
+	orderAgo,
+	ownPlug: (id) => relay?.hasPlug(id) ?? false,
+	log
+});
+
+// Its beat, every minute (#469); with its fingerprint and its rules' version (#651).
+const beatNow = startBeats(
+	() => {
+		const ip = homeAddress();
+		return ip ? pageAddress(ip) : null;
+	},
+	() => ({ fp: trust.fp, reglas: plugRules.version() })
+);
 
 /** The plug tasks taken already (#396), by their id: not again while the server still sends them. */
 const plugTasksTaken = new Set<string>();

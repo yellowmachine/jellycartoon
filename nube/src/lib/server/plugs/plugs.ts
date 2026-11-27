@@ -78,6 +78,7 @@ function makeHub() {
 			if (patch.deviceId) set.deviceId = patch.deviceId;
 			if (patch.model) set.model = patch.model;
 			if (patch.ip) set.ip = patch.ip;
+			if (patch.satellite) set.satelliteFp = patch.satellite;
 			await asFamily(familyId, (tx) => tx.update(plug).set(set).where(eq(plug.id, plugId)));
 		},
 		async addEnergy(familyId, plugId, hour, wh) {

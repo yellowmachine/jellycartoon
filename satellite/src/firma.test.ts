@@ -71,7 +71,8 @@ describe('the device and the satellite, together', () => {
 		expect(
 			await firma.acceptEnrolment(
 				request.satellite,
-				{ ...done, ack: done.ack.replace(/^./, 'A') },
+				// Another first letter, always: «A» if it did not start with one.
+				{ ...done, ack: done.ack.replace(/^./, (c) => (c === 'A' ? 'B' : 'A')) },
 				{
 					satellite: 'Dormitorio',
 					as: 'Móvil'

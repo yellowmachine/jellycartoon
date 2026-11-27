@@ -3,6 +3,8 @@ import type { RequestHandler } from './$types';
 import { ringingFor, watchAlarms } from '#lib/server/alarms/alarms.ts';
 import { directHearing } from '#lib/server/house.ts';
 import { plugTasksFor } from '#lib/server/plugs/setup.ts';
+import { offeredRulesOf } from '#lib/server/plugs/satellite-rules.ts';
+import type { OfferedPlugRules } from '#lib/server/db/voice.schema.ts';
 import {
 	languagesOf,
 	satelliteHere,
@@ -27,7 +29,8 @@ import { greetingsOf, satelliteVoiceOf, voiceKey } from '#lib/server/voice/satel
  * itself (`wakeWord`, the same for all; none, each its own); and the snapserver it plays from (Ajustes), for its own snapclient, with its name and its id there.
  * And where it hears directly (`hearing`, #430), its house's Whisper, none to do it through here;
  * failing to know it never holds back what rings. And the smart plugs it is to find or set up in
- * its network (`plugTasks`, #396), answered at /api/satelite/enchufes.
+ * its network (`plugTasks`, #396), answered at /api/satelite/enchufes. And the plug rules it is
+ * offered (`plugRules`, #651), signed by a device or said to it.
  * Again on every change. While open, it is there for «Compañía» (#469), which asks only those that
  * say they can (`SATELLITE_CAN_HEADER`): a `say` with `listen` is a question, its answer sent to
  * /api/satelite/compania.
@@ -44,6 +47,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		wakeWord: string | null;
 		hearing: DirectHearing | null;
 		plugTasks: PlugTask[];
+		plugRules: OfferedPlugRules | null;
 	};
 	const canAsk = (request.headers.get(SATELLITE_CAN_HEADER) ?? '')
 		.split(',')
@@ -67,9 +71,10 @@ export const GET: RequestHandler = async ({ request }) => {
 								)
 							: null
 					)
-					.catch(() => null)
+					.catch(() => null),
+				offeredRulesOf(k, satellite.id).catch(() => null)
 			])
-				.then(([ringing, snapserver, voice, hearing]) =>
+				.then(([ringing, snapserver, voice, hearing, plugRules]) =>
 					listener({
 						...ringing,
 						snapserver,
@@ -80,7 +85,8 @@ export const GET: RequestHandler = async ({ request }) => {
 						greetings: greetingsOf(voice),
 						wakeWord: voice.wakeWord,
 						hearing,
-						plugTasks: plugTasksFor(satellite.id)
+						plugTasks: plugTasksFor(satellite.id),
+						plugRules
 					})
 				)
 				.catch((err) => console.warn('[avisos] Para el satélite', err));

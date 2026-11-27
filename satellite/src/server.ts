@@ -1,3 +1,4 @@
+import type { OfferedRules } from './rules.ts';
 import {
 	assistantTurn,
 	HEARING_KEY_HEADER,
@@ -213,6 +214,8 @@ export interface Ringing {
 	hearing?: DirectHearing | null;
 	/** Seilide's (#396): smart plugs to find or set up in the home's network. */
 	plugTasks?: PlugTask[];
+	/** Seilide's (#651): the plug rules for it to keep, signed or said here; null, none offered. */
+	plugRules?: OfferedRules | null;
 }
 
 /** After a dropped channel, tried again this long after. */
@@ -302,16 +305,22 @@ export async function answerCompanion(wav: Uint8Array) {
  * Every minute, a beat to Seilide (#469): there, for «Compañía». With it, the address of its page
  * of devices (#643), for Enchufes' link. Never fails.
  */
-export function startBeats(page: () => string | null = () => null) {
-	if (!serverReady) return;
+export function startBeats(
+	page: () => string | null = () => null,
+	/** Its fingerprint and the plug rules' version it keeps (#651), for Seilide to know. */
+	more: () => { fp?: string; reglas?: number } = () => ({})
+) {
+	if (!serverReady) return () => {};
 	const beat = () =>
 		void request(
 			'/api/satelite/latido',
-			JSON.stringify({ alta: page() ?? undefined }),
+			JSON.stringify({ alta: page() ?? undefined, ...more() }),
 			'application/json'
 		).catch((err) =>
 			console.error(`Sin latido: ${err instanceof Error ? err.message : String(err)}`)
 		);
 	beat();
 	setInterval(beat, 60_000).unref();
+	/** One now: Seilide learns at once that the rules were taken. */
+	return beat;
 }

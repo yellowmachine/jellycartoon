@@ -125,6 +125,7 @@ import {
 } from '#lib/server/rules.ts';
 import { doseText } from 'comun/medication.ts';
 import { languagesOf } from '#lib/server/satellites.ts';
+import { offerSaidRule } from '#lib/server/plugs/satellite-rules.ts';
 import { languageLine, saidIn, type AnswerLanguage } from '#lib/satellite-language.ts';
 import { dosesFor, listMedication, markDose } from '#lib/server/medication.ts';
 import { MAX_RULE, ruleSaid } from '#lib/rules.ts';
@@ -1480,6 +1481,12 @@ async function runTool(
 			if (!id)
 				return 'No se ha creado: la familia ya tiene demasiadas reglas (se borran en Ajustes).';
 			ctx.outcome.done++;
+			// Said to a satellite (#651): its plug rule offered to it now, unsigned, while it has just
+			// heard the order. Never in the way of the answer.
+			if (ctx.order.satellite)
+				await offerSaidRule(ctx.k, ctx.order.satellite.id, id).catch((err) =>
+					console.warn('[reglas] Al satélite', err)
+				);
 			return `Regla ${id} creada, ${whose ? 'solo de quien habla' : 'de toda la casa'}. Así la ha entendido: «${ruleSaid(made)}». Díselo corto, para que pueda corregirla.`;
 		}
 		case 'list_rules': {
@@ -1493,6 +1500,10 @@ async function runTool(
 			const gone = Number.isInteger(id) ? await deleteRule(ctx.k, ctx.memoryOf, id) : null;
 			if (!gone) return `No hay ninguna regla con el número ${args.id} que pueda ver quien habla.`;
 			ctx.outcome.done++;
+			if (ctx.order.satellite)
+				await offerSaidRule(ctx.k, ctx.order.satellite.id, id).catch((err) =>
+					console.warn('[reglas] Al satélite', err)
+				);
 			return `Borrada: «${gone}».`;
 		}
 		case 'list_errands':

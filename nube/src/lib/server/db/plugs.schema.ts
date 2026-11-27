@@ -84,6 +84,11 @@ export const plug = pgTable(
 		notifyOffline: boolean('notify_offline').notNull().default(false),
 		notifyOnHours: integer('notify_on_hours'),
 		notifyAloud: boolean('notify_aloud').notNull().default(false),
+		/**
+		 * The satellite it comes through (#643), its fingerprint, as it last said: its plug rules go
+		 * there (#651), also while it is not connected. Null, never through one.
+		 */
+		satelliteFp: text('satellite_fp'),
 		/** The ids of the plug's own schedule jobs that are Seilide's: only these it rewrites. */
 		scheduleJobs: integer('schedule_jobs')
 			.array()

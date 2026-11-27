@@ -291,6 +291,8 @@ export function startRelay({
 	 * own (plugs/notices.ts). Only the cycle: the notices are still Seilide's.
 	 */
 	const watches = new Map<string, PlugWatch>();
+	/** The plugs that have come through here since it started, by their Shelly id (#651). */
+	const seenPlugs = new Set<string>();
 	const cycleOf = (shellyId: string, events: string[]) => {
 		for (const e of events)
 			if (e === 'started' || e === 'finished') {
@@ -429,7 +431,10 @@ export function startRelay({
 			if (!shellyId)
 				try {
 					const src = (JSON.parse(text) as { src?: unknown }).src;
-					if (typeof src === 'string' && /^shelly[\w-]{1,80}$/i.test(src)) shellyId = src;
+					if (typeof src === 'string' && /^shelly[\w-]{1,80}$/i.test(src)) {
+						shellyId = src;
+						seenPlugs.add(src);
+					}
 				} catch {
 					// Not JSON: passed on as it is; Seilide does not understand it either.
 				}
@@ -479,5 +484,9 @@ export function startRelay({
 		});
 	});
 
-	return { close: () => (clearInterval(ticker), server.close(), http.close()) };
+	return {
+		/** Whether that plug has come through here (#651: its rules said by voice). */
+		hasPlug: (shellyId: string) => seenPlugs.has(shellyId),
+		close: () => (clearInterval(ticker), server.close(), http.close())
+	};
 }

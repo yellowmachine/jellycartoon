@@ -108,6 +108,30 @@ export async function setLanguages(
 	tellSatellite(id);
 }
 
+/**
+ * What its beat says (#651): its key's fingerprint (22 characters, as trust.ts makes it) and the
+ * plug rules' version it keeps; saved only when it changed.
+ */
+export async function satelliteKept(k: Kitchen, id: string, fp: unknown, kept: unknown) {
+	const set: { trustFp?: string; plugRulesKept?: number } = {};
+	if (typeof fp === 'string' && /^[\w-]{22}$/.test(fp)) set.trustFp = fp;
+	if (Number.isSafeInteger(kept) && (kept as number) >= 0) set.plugRulesKept = kept as number;
+	if (!Object.keys(set).length) return;
+	const [row] = await k.run((tx) =>
+		tx
+			.select({ trustFp: voiceSatellite.trustFp, kept: voiceSatellite.plugRulesKept })
+			.from(voiceSatellite)
+			.where(eq(voiceSatellite.id, id))
+	);
+	if (
+		row &&
+		row.trustFp === (set.trustFp ?? row.trustFp) &&
+		row.kept === (set.plugRulesKept ?? row.kept)
+	)
+		return;
+	await k.run((tx) => tx.update(voiceSatellite).set(set).where(eq(voiceSatellite.id, id)));
+}
+
 /** The satellite a request comes from, and its family's kitchen: a 401 without a valid key. */
 export async function satelliteRequest(
 	request: Request

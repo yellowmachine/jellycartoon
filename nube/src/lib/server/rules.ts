@@ -128,8 +128,8 @@ export function listRules(k: Kitchen, userId: string | null): Promise<Rule[]> {
 	);
 }
 
-/** Every one of the family: the clock's and the events'. */
-function allRules(k: Kitchen): Promise<Rule[]> {
+/** Every one of the family: the clock's and the events' (and its satellites', #651). */
+export function allRules(k: Kitchen): Promise<Rule[]> {
 	return k.run((tx) => tx.select(COLUMNS).from(rule).where(eq(rule.familyId, k.familyId)));
 }
 
