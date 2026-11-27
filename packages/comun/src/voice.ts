@@ -36,7 +36,11 @@ export interface DirectHearing {
  */
 export type PlugTask =
 	| { id: string; kind: 'buscar' }
-	| { id: string; kind: 'configurar'; ip: string; deviceId: string; server: string };
+	| { id: string; kind: 'configurar'; ip: string; deviceId: string; server: string }
+	/** «Añade un aparato» (#643): the satellite's page shows a code for five minutes. */
+	| { id: string; kind: 'abrir-alta' }
+	/** A device given to the satellite with that code: its key, its name, and a MAC made with it. */
+	| { id: string; kind: 'alta'; publicKey: string; name: string; mac: string };
 
 /** A Shelly found in the home's network. */
 export interface FoundPlug {
@@ -61,6 +65,11 @@ export interface PlugTaskResult {
 	found?: FoundPlug[];
 	/** What went wrong; none, done. */
 	problem?: string;
+	/** For «abrir-alta»: its page in the home's wifi, and until when it is open (ms). */
+	url?: string;
+	until?: number;
+	/** For «alta»: the device's fingerprint, the satellite's key, and its signature of the device. */
+	enrolled?: { fp: string; satellite: string; ack: string };
 }
 
 /** Voice commands (#33), shared by the server and /voz. */

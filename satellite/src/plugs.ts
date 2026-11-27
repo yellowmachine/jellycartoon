@@ -262,6 +262,13 @@ export async function setUpPlug(
 		ha1
 	);
 	if ('error' in set) throw new PlugProblem('El enchufe no aceptó la dirección');
+	// Its time zone (#643): its schedules count in the home's time, set here once.
+	await rpc(
+		task.ip,
+		'Sys.SetConfig',
+		{ config: { location: { tz: process.env.TZ || 'Europe/Madrid' } } },
+		ha1
+	).catch(() => {});
 	if (!shelly.auth) {
 		// Kept before it is set: an answer lost on the way must not leave a password no one knows.
 		const password = randomBytes(24).toString('base64url');
@@ -286,6 +293,7 @@ export async function doPlugTask(
 ): Promise<PlugTaskResult> {
 	try {
 		if (task.kind === 'buscar') return { id: task.id, found: await findPlugs(allowed) };
+		if (task.kind !== 'configurar') return { id: task.id, problem: 'No es una tarea de enchufes' };
 		await setUpPlug(task, allowed, ownAddress);
 		return { id: task.id };
 	} catch (err) {

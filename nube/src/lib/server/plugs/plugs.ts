@@ -15,7 +15,7 @@ import { asFamily, withFamily } from '../family.ts';
 import type { AnyDb } from '../family-scope.ts';
 import type { Kitchen } from '../fridge.ts';
 import { satelliteKeyScope } from '../satellite-key-scope.ts';
-import { createHub, PlugOffline, type Hub } from './hub.ts';
+import { createHub, PlugOffline, type Hub, type SignedOrder } from './hub.ts';
 import { newPlugToken, plugKeyScope } from './plug-key-scope.ts';
 import { isSensorDevice, SWITCH_ID } from './shelly.ts';
 import {
@@ -221,6 +221,9 @@ async function readPlugs(tx: AnyDb, withIp: boolean): Promise<PlugView[]> {
 			kind: p.kind,
 			online: now.online,
 			relayed: now.online && now.relayed,
+			satellite: now.online && now.relayed ? now.satellite : null,
+			auto: now.online && now.relayed && now.auto,
+			deviceId: p.deviceId,
 			waiting: p.lastSeenAt === null && !now.online,
 			reconnecting: !now.online && p.lastSeenAt !== null && hub.reconnecting(p.id),
 			output: now.online ? now.output : p.output,
@@ -333,8 +336,50 @@ export async function deletePlug(userId: string, id: string) {
  * paused (it stays off), `heating` with `backAfterS` in a long heat (see switchIn). Throws
  * PlugOffline if it is not connected.
  */
-export async function switchPlug(userId: string, id: string, on: boolean, backAfterS?: number) {
-	return switchIn(await kitchenOfUser(userId), id, on, backAfterS);
+export async function switchPlug(
+	userId: string,
+	id: string,
+	on: boolean,
+	backAfterS?: number,
+	signed?: SignedOrder
+) {
+	return switchIn(await kitchenOfUser(userId), id, on, backAfterS, signed);
+}
+
+/**
+ * What a device signed (#643), read to apply Seilide's own checks (padlock, pause): on or off, and
+ * its timer. Null if it is not a Switch.Set of that plug. The satellite checks the signature.
+ */
+export function signedSwitch(order: SignedOrder, deviceId: string | null) {
+	try {
+		const e = JSON.parse(order.envelope) as {
+			plug?: unknown;
+			method?: unknown;
+			params?: { on?: unknown; toggle_after?: unknown };
+		};
+		if (!deviceId || e.plug !== deviceId || e.method !== 'Switch.Set') return null;
+		if (typeof e.params?.on !== 'boolean') return null;
+		const after = e.params.toggle_after;
+		return { on: e.params.on, backAfterS: typeof after === 'number' ? after : undefined };
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Whether Seilide may switch that plug by itself (#643), as a device signed it: its satellite keeps
+ * it. False if it is not the family's.
+ */
+export async function permitPlug(userId: string, id: string, signed: SignedOrder) {
+	const [row] = await withFamily(userId, (tx) =>
+		tx.select({ id: plug.id, familyId: plug.familyId }).from(plug).where(eq(plug.id, id))
+	);
+	if (!row) return false;
+	await hub.callSigned(id, signed);
+	await hub.readGuard(id);
+	// Allowed now: its schedules, which it may not have had.
+	if (hub.liveOf(id).auto) await trySync(row.familyId, id);
+	return true;
 }
 
 /** The same in a kitchen (the voice, a satellite's too). */
@@ -347,11 +392,17 @@ export async function switchIn(
 	k: Pick<Kitchen, 'familyId' | 'run'>,
 	id: string,
 	on: boolean,
-	backAfterS?: number
+	backAfterS?: number,
+	signed?: SignedOrder
 ) {
 	const [row] = await k.run((tx) =>
 		tx
-			.select({ paused: plug.paused, locked: plug.locked, heatUntil: plug.heatUntil })
+			.select({
+				paused: plug.paused,
+				locked: plug.locked,
+				heatUntil: plug.heatUntil,
+				deviceId: plug.deviceId
+			})
 			.from(plug)
 			.where(eq(plug.id, id))
 	);
@@ -360,11 +411,17 @@ export async function switchIn(
 	if (row.paused) return 'paused' as const;
 	const heating = row.heatUntil && row.heatUntil > new Date();
 	if (backAfterS && heating) return 'heating' as const;
-	await hub.call(
-		id,
-		'Switch.Set',
-		backAfterS ? { id: SWITCH_ID, on, toggle_after: backAfterS } : { id: SWITCH_ID, on }
-	);
+	if (signed) {
+		// What it signed is what is done: it must say the same as what was asked.
+		const said = signedSwitch(signed, row.deviceId);
+		if (!said || said.on !== on || said.backAfterS !== backAfterS) return 'mismatch' as const;
+		await hub.callSigned(id, signed);
+	} else
+		await hub.call(
+			id,
+			'Switch.Set',
+			backAfterS ? { id: SWITCH_ID, on, toggle_after: backAfterS } : { id: SWITCH_ID, on }
+		);
 	// Started one, or ended the one it had: for its page.
 	void hub.readTimer(id);
 	// Switched off by hand in a long heat: the heat is over, its schedules back now.
@@ -497,14 +554,9 @@ const sameJob = (job: ShellyJob, want: PlugJob) =>
 	job.calls[0]!.method === 'Switch.Set' &&
 	job.calls[0]!.params?.on === want.on;
 
-/**
- * The plug made to match what Seilide keeps of it: its time zone the family's, its schedule jobs
- * (only Seilide's: what the Shelly app put stays), off while paused, and on through a long heat.
- * Not connected, it is done when it connects.
- */
-export async function syncPlug(familyId: string, plugId: string) {
-	if (!hub.connected(plugId)) return;
-	const { row, schedules } = await asFamily(familyId, async (tx) => ({
+/** What Seilide keeps of a plug's schedules: its state, and the schedules. */
+async function planOf(familyId: string, plugId: string) {
+	return asFamily(familyId, async (tx) => ({
 		row: (
 			await tx
 				.select({
@@ -524,6 +576,80 @@ export async function syncPlug(familyId: string, plugId: string) {
 			.where(eq(plugSchedule.plugId, plugId))
 			.orderBy(asc(plugSchedule.id))
 	}));
+}
+
+/** What a device signs for its plug's schedules (#643): its satellite does it in one go. */
+export interface ScheduleTarget {
+	id: string;
+	satellite: string;
+	deviceId: string;
+	params: { jobs: PlugJob[]; replace: number[]; off?: true; onFor?: number };
+}
+
+/**
+ * After a schedule or a pause changed (#643): if the plug goes through a satellite that does not
+ * let Seilide do it alone, what this device is to sign for it to be done now, as syncPlug would. Null
+ * if Seilide does it itself, or there is nothing to sign for (not connected, a sensor).
+ */
+export async function scheduleTarget(familyId: string, plugId: string) {
+	const live = hub.liveOf(plugId);
+	if (!live.online || !live.relayed || live.auto || !live.satellite) return null;
+	const { row, schedules } = await planOf(familyId, plugId);
+	if (!row?.deviceId || isSensorDevice(row.deviceId)) return null;
+	const now = Date.now();
+	const heatLeft = row.heatUntil ? row.heatUntil.getTime() - now : 0;
+	const skipping = Boolean(
+		row.skipFrom && row.skipUntil && row.skipFrom.getTime() <= now && now < row.skipUntil.getTime()
+	);
+	const target: ScheduleTarget = {
+		id: plugId,
+		satellite: live.satellite,
+		deviceId: row.deviceId,
+		params: {
+			jobs: jobsFor(schedules, !row.paused && heatLeft <= 0, skipping),
+			replace: row.scheduleJobs
+		}
+	};
+	if (row.paused) target.params.off = true;
+	else if (heatLeft > 0) target.params.onFor = Math.ceil(heatLeft / 1000);
+	return target;
+}
+
+/**
+ * The schedules a device signed (#643), done by its satellite: the new jobs' ids kept, as
+ * syncPlug keeps them. False if it is not the family's, or not a schedule order of that plug.
+ */
+export async function applySignedSchedules(userId: string, plugId: string, signed: SignedOrder) {
+	const [row] = await withFamily(userId, (tx, { familyId }) =>
+		tx
+			.select({ deviceId: plug.deviceId, familyId: sql<string>`${familyId}` })
+			.from(plug)
+			.where(eq(plug.id, plugId))
+	);
+	if (!row) return false;
+	try {
+		const e = JSON.parse(signed.envelope) as { plug?: unknown; method?: unknown };
+		if (e.plug !== row.deviceId || e.method !== 'Satelite.Horarios') return false;
+	} catch {
+		return false;
+	}
+	const { jobs } = (await hub.callSigned(plugId, signed)) as { jobs?: unknown };
+	const made = Array.isArray(jobs) ? jobs.filter((id): id is number => Number.isInteger(id)) : [];
+	await asFamily(row.familyId, (tx) =>
+		tx.update(plug).set({ scheduleJobs: made }).where(eq(plug.id, plugId))
+	);
+	hub.changed(row.familyId);
+	return true;
+}
+
+/**
+ * The plug made to match what Seilide keeps of it: its time zone the family's, its schedule jobs
+ * (only Seilide's: what the Shelly app put stays), off while paused, and on through a long heat.
+ * Not connected, it is done when it connects.
+ */
+export async function syncPlug(familyId: string, plugId: string) {
+	if (!hub.connected(plugId)) return;
+	const { row, schedules } = await planOf(familyId, plugId);
 	// A sensor (#508) has no switch nor schedules, and is awake only for a moment.
 	if (!row || isSensorDevice(row.deviceId)) return;
 
@@ -603,6 +729,9 @@ async function familyPlug(userId: string, plugId: string) {
 
 /** Synced now if connected; if not, when it connects. A failure is only logged: it is tried again then. */
 async function trySync(familyId: string, plugId: string) {
+	// Through a satellite that does not let Seilide do it alone (#643): it would only be refused.
+	const now = hub.liveOf(plugId);
+	if (now.relayed && !now.auto) return;
 	try {
 		await syncPlug(familyId, plugId);
 	} catch (e) {

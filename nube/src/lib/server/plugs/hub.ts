@@ -43,6 +43,15 @@ export interface PlugLive {
 	 * comes straight to Seilide, which can do anything with it.
 	 */
 	relayed: boolean;
+	/** Through a satellite: which (its fingerprint), and whether Seilide may switch it alone. */
+	satellite: string | null;
+	auto: boolean;
+}
+
+/** A signed order (#643), as the device made it: the JSON text it signed, and its signature. */
+export interface SignedOrder {
+	envelope: string;
+	sig: string;
 }
 
 export interface HubDeps {
@@ -76,6 +85,9 @@ export class PlugOffline extends Error {
 		super('El enchufe no está conectado');
 	}
 }
+
+/** The satellite would not let the order down (#643): its reason, said to whoever asked. */
+export class PlugRefused extends Error {}
 
 /** An order unanswered by then: given up. */
 const CALL_TIMEOUT_MS = 5000;
@@ -152,7 +164,9 @@ export function createHub(deps: HubDeps) {
 				output: null,
 				power: null,
 				timerUntil: null,
-				relayed: false
+				relayed: false,
+				satellite: null,
+				auto: false
 			}
 		);
 	}
@@ -172,7 +186,9 @@ export function createHub(deps: HubDeps) {
 			// The whole state says all its timer; a change only when it starts one, so a switch
 			// without one is asked (it may have ended or been cancelled).
 			timerUntil: sw.timerUntil ?? (full ? null : before.timerUntil),
-			relayed: before.relayed
+			relayed: before.relayed,
+			satellite: before.satellite,
+			auto: before.auto
 		};
 		live.set(c.plug.id, after);
 		if (switched && !full && sw.timerUntil === undefined) void readTimer(c.plug.id);
@@ -219,7 +235,12 @@ export function createHub(deps: HubDeps) {
 			if (!waiting) return;
 			c.pending.delete(message.id);
 			clearTimeout(waiting.timer);
-			if (message.error) waiting.reject(new Error(message.error.message));
+			if (message.error)
+				waiting.reject(
+					message.error.code === 403
+						? new PlugRefused(message.error.message)
+						: new Error(message.error.message)
+				);
 			else waiting.resolve(message.result);
 			return;
 		}
@@ -252,7 +273,9 @@ export function createHub(deps: HubDeps) {
 			online: false,
 			power: null,
 			timerUntil: null,
-			relayed: false
+			relayed: false,
+			satellite: null,
+			auto: false
 		});
 		tell(c.plug.familyId);
 		deps.onGone?.(c.plug.familyId, c.plug.id);
@@ -270,6 +293,30 @@ export function createHub(deps: HubDeps) {
 			tell(c.plug.familyId);
 		} catch {
 			// Gone, or it did not answer: the next whole state says it.
+		}
+	}
+
+	/**
+	 * What its satellite says of it (#643): which satellite, and whether Seilide may switch it alone.
+	 * Asked on connecting and after a permission changes.
+	 */
+	async function readGuard(plugId: string) {
+		const c = connections.get(plugId);
+		if (!c) return;
+		try {
+			const state = (await call(plugId, 'Satelite.Estado')) as {
+				satellite?: unknown;
+				auto?: unknown;
+			};
+			if (connections.get(plugId) !== c) return;
+			live.set(plugId, {
+				...liveOf(plugId),
+				satellite: typeof state?.satellite === 'string' ? state.satellite : null,
+				auto: state?.auto === true
+			});
+			tell(c.plug.familyId);
+		} catch (e) {
+			if (!(e instanceof PlugOffline)) log(`${plugId}: sin estado del satélite`, e);
 		}
 	}
 
@@ -340,7 +387,9 @@ export function createHub(deps: HubDeps) {
 		live.set(plug.id, { ...liveOf(plug.id), online: true, relayed });
 		tell(plug.familyId);
 		for (const text of early) onMessage(c, text);
-		deps.onConnect?.(plug.familyId, plug.id);
+		// Through a satellite, what it allows first (#643): its schedules only if Seilide may.
+		if (relayed) void readGuard(plug.id).then(() => deps.onConnect?.(plug.familyId, plug.id));
+		else deps.onConnect?.(plug.familyId, plug.id);
 
 		call(plug.id, 'Shelly.GetDeviceInfo')
 			.then((info) => {
@@ -398,6 +447,10 @@ export function createHub(deps: HubDeps) {
 		remove,
 		liveOf,
 		readTimer,
+		readGuard,
+		/** A device's signed order (#643), for its satellite to check and let down. */
+		callSigned: (plugId: string, order: SignedOrder) =>
+			call(plugId, 'Satelite.Firmada', { envelope: order.envelope, sig: order.sig }),
 		checkAlive,
 		/** The family's open pages, told when any of its plugs changes. */
 		watch(familyId: string, listener: () => void) {

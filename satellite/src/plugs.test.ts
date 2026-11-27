@@ -72,6 +72,11 @@ describe('plugs from the satellite', () => {
 			},
 			{
 				id: 1,
+				method: 'Sys.SetConfig',
+				params: { config: { location: { tz: process.env.TZ || 'Europe/Madrid' } } }
+			},
+			{
+				id: 1,
 				method: 'Shelly.SetAuth',
 				params: { user: 'admin', realm: 'shellyplugmg3-1', ha1: ha1Of('shellyplugmg3-1', password) }
 			},

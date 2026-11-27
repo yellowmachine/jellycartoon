@@ -70,6 +70,12 @@ export interface PlugView {
 	online: boolean;
 	/** Connected through one of the family's satellites (#643): Seilide can only switch it. */
 	relayed: boolean;
+	/** Its satellite's fingerprint, for the device to sign its orders for it; null, none. */
+	satellite: string | null;
+	/** Seilide may switch it by itself (its schedules, rules, the voice): its satellite says so. */
+	auto: boolean;
+	/** Its Shelly's id («shellyplugmg3-…»), which a signed order names; null, not known yet. */
+	deviceId: string | null;
 	/** Never connected yet: still to be set up. */
 	waiting: boolean;
 	/** Not connected, but Seilide has just started (a new version): it is coming back by itself. */

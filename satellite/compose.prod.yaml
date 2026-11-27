@@ -1,13 +1,15 @@
 # The voice satellite (#296) on a Raspberry (64-bit) or a PC, as installed: the published image,
 # talking to Seilide (SERVER_URL, SATELLITE_KEY in the .env, from Seilide's Ajustes → Familia →
-# «Satélites de voz»), and WUD keeping it up to date. See README.md.
+# «Satélites de voz»). Kept up to date by actualizar.sh (#643): only images signed with the family's
+# key (cosign.pub, beside it), pinned by digest in SATELLITE_IMAGE. See README.md.
 #
 #   docker compose -f compose.prod.yaml up -d
 name: satelite
 
 services:
   satellite:
-    image: ghcr.io/yellowmachine/jellycartoon-satellite:${IMAGE_TAG:-stable}
+    # Set by actualizar.sh to the signed image's digest; without it, the channel's tag (the first time).
+    image: ${SATELLITE_IMAGE:-ghcr.io/yellowmachine/jellycartoon-satellite:${IMAGE_TAG:-stable}}
     restart: unless-stopped
     # The host's network (#396): finding the Shelly plugs by mDNS, whose multicast Docker's bridge
     # does not pass. It opens one port, PLUG_PORT (8790), where the plugs connect (#643).
@@ -34,38 +36,18 @@ services:
       SATELLITE_KEY: ${SATELLITE_KEY:?SATELLITE_KEY is required}
       SPEAKER: ${SPEAKER:-}
       PLUG_PORT: ${PLUG_PORT:-8790}
+      # Optional (#643): its page /alta opens the window to give a device with it, as «añade un
+      # aparato» said to it. Only here, never in Seilide: not SATELLITE_KEY, which goes there.
+      ALTA_CLAVE: ${ALTA_CLAVE:-}
       # The house's music (its snapserver, said by Seilide) on another device than the voice's.
       SNAPCLIENT_SOUNDCARD: ${SNAPCLIENT_SOUNDCARD:-}
     volumes:
       - ordenes:/data
-    labels:
-      # Updated by WUD to each release, as the house's app.
-      - wud.watch=true
-
-  # Each night, the new release if there is one: it pulls it and recreates the satellite as it was,
-  # then removes the old image. As the house's (its compose.prod.yaml), without its web.
-  wud:
-    image: getwud/wud:9
-    restart: unless-stopped
-    environment:
-      TZ: ${TZ:-Europe/Madrid}
-      WUD_WATCHER_LOCAL_CRON: ${UPDATE_CRON:-30 4 * * *}
-      WUD_WATCHER_LOCAL_WATCHBYDEFAULT: 'false'
-      WUD_TRIGGER_DOCKER_SATELITE_PRUNE: 'true'
-      # Since WUD 9.6 it does not start without an administrator
-      # (https://getwud.app/docs/configuration/authentications/), as the house's. Its web has no port
-      # here: the password is only for it to start.
-      WUD_AUTH_ADMIN_USER: admin
-      WUD_AUTH_ADMIN_PASSWORD: ${WUD_PASSWORD:?Falta WUD_PASSWORD en el .env (openssl rand -hex 16)}
-    volumes:
-      # Control of Docker: whoever controls WUD controls this machine's containers.
-      - /var/run/docker.sock:/var/run/docker.sock
-      - wud_store:/store
 
   # Optional, with `dns` in COMPOSE_PROFILES (#355): the house's primary DNS, on a Raspberry that is
   # always on (the salon, secondary, with the same rewrite). Only on one of the satellites. As its
   # Docker image says (https://hub.docker.com/r/adguard/adguardhome): the first time, its wizard on
-  # port 3000; in it, keep the web on port 3000 too. Pinned: WUD does not touch it (a new version
+  # port 3000; in it, keep the web on port 3000 too. Pinned: nothing updates it (a new version
   # by hand), so that a night update never leaves the house without DNS.
   adguard:
     image: adguard/adguardhome:v0.107.79
@@ -81,6 +63,5 @@ services:
 
 volumes:
   ordenes:
-  wud_store:
   adguard_work:
   adguard_conf:

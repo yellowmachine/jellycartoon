@@ -1,6 +1,8 @@
 <script lang="ts">
+	import AltaAparato from '#lib/components/AltaAparato.svelte';
 	import EnchufesTabs from '#lib/components/EnchufesTabs.svelte';
-	import { enhance } from '$app/forms';
+	import { signedSwitch, signOrder, trusted, type SatelliteTrust } from '#lib/enchufes/firma.ts';
+	import { deserialize, enhance, type SubmitFunction } from '$app/forms';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import {
 		energyText,
@@ -33,6 +35,63 @@
 		events.onmessage = (e) => (live = JSON.parse(e.data));
 		return () => events.close();
 	});
+
+	/** The satellites this device is given to (#643): it signs its orders for their plugs. */
+	let devices = $state<SatelliteTrust[]>([]);
+	const loadDevices = () => void trusted().then((d) => (devices = d));
+	$effect(loadDevices);
+	const canSign = (p: PlugView) =>
+		p.relayed && p.satellite !== null && devices.some((d) => d.fp === p.satellite);
+	/** Through a satellite that lets nothing unsigned down, and this device cannot sign: not here. */
+	const needsDevice = (p: PlugView) => p.relayed && !p.auto && !canSign(p);
+
+	/**
+	 * After a schedule or a pause changed (#643): what its satellite needs signed, signed here and
+	 * sent, so that it is done now without Seilide doing it alone.
+	 */
+	type ScheduleTarget = {
+		id: string;
+		satellite: string;
+		deviceId: string;
+		params: Record<string, unknown>;
+	};
+	let signProblem = $state<{ id: string; text: string } | null>(null);
+	async function applySigned(target: ScheduleTarget) {
+		signProblem = null;
+		const order = await signOrder(
+			target.satellite,
+			target.deviceId,
+			'Satelite.Horarios',
+			target.params
+		);
+		if (!order) {
+			signProblem = {
+				id: target.id,
+				text: 'Guardado en Seilide, pero el enchufe no lo tiene: hace falta un aparato dado de alta'
+			};
+			return;
+		}
+		const body = new FormData();
+		body.set('id', target.id);
+		body.set('signed', JSON.stringify(order));
+		const res = await fetch('?/applySchedules', {
+			method: 'POST',
+			body,
+			headers: { 'x-sveltekit-action': 'true' }
+		});
+		const result = deserialize(await res.text());
+		if (result.type === 'failure')
+			signProblem = { id: target.id, text: String(result.data?.problem ?? 'No se pudo') };
+		else if (result.type === 'error') signProblem = { id: target.id, text: 'No se pudo' };
+	}
+	/** A form whose answer may bring what to sign: signed after it, then the page updated. */
+	const thenSign: SubmitFunction =
+		() =>
+		async ({ result, update }) => {
+			if (result.type === 'success' && result.data?.sign)
+				await applySigned(result.data.sign as ScheduleTarget);
+			await update();
+		};
 
 	/** The one being sent an order, and the one being changed. */
 	let busy = $state<string | null>(null);
@@ -114,6 +173,10 @@
 	<p class="mb-4 rounded-md bg-red-950 px-3 py-2 text-sm text-red-200">{form.problem}</p>
 {/if}
 
+{#if data.satellites && plugs.some((p) => p.relayed)}
+	<AltaAparato {devices} enrolment={data.enrolment} onchange={loadDevices} />
+{/if}
+
 {#if form && 'address' in form && form.address}
 	{@const a = form.address}
 	<section class="{section} border-amber-500/50">
@@ -168,8 +231,11 @@
 						method="post"
 						action="?/switch"
 						class="min-w-0 flex-1"
-						use:enhance={() => {
+						use:enhance={async ({ formData }) => {
 							busy = p.id;
+							// Through its satellite (#643): signed here, if this device is given to it.
+							const signed = await signedSwitch(p, !on);
+							if (signed) formData.set('signed', signed);
 							return async ({ update }) => {
 								await update();
 								busy = null;
@@ -179,7 +245,10 @@
 						<input type="hidden" name="id" value={p.id} />
 						<input type="hidden" name="on" value={String(!on)} />
 						<button
-							disabled={!p.online || p.paused || p.locked || busy === p.id}
+							disabled={!p.online || p.paused || p.locked || needsDevice(p) || busy === p.id}
+							title={needsDevice(p)
+								? 'Su satélite solo obedece a los aparatos dados de alta: da de alta este arriba'
+								: undefined}
 							class="flex w-full items-center gap-4 rounded-lg text-left disabled:cursor-not-allowed"
 							aria-label="{on ? 'Apagar' : 'Encender'} {p.name}"
 						>
@@ -259,13 +328,57 @@
 						✓ Hecho: se reinicia y vuelve a conectarse por el satélite en unos segundos.
 					</p>
 				{/if}
-				{#if canTime(p)}
+				{#if p.relayed}
+					<!-- Whether Seilide may do it alone (#643): kept by its satellite, changed only signed. -->
+					<form
+						method="post"
+						action="?/permit"
+						class="mt-3 flex flex-wrap items-center gap-2 text-sm"
+						use:enhance={async ({ formData, cancel }) => {
+							const order =
+								p.satellite && p.deviceId
+									? await signOrder(p.satellite, p.deviceId, 'Satelite.Permiso', { auto: !p.auto })
+									: null;
+							if (!order) return cancel();
+							formData.set('signed', JSON.stringify(order));
+							busy = p.id;
+							return async ({ update }) => {
+								await update();
+								busy = null;
+							};
+						}}
+					>
+						<input type="hidden" name="id" value={p.id} />
+						<span class={p.auto ? 'text-zinc-300' : 'text-zinc-400'}
+							>{p.auto
+								? '🤖 Seilide puede hacerlo solo: horarios, reglas, voz'
+								: '🔐 Solo con un aparato dado de alta'}</span
+						>
+						{#if canSign(p)}
+							<button
+								disabled={busy === p.id}
+								class="rounded-full bg-zinc-800 px-3 py-1 text-zinc-200 hover:bg-zinc-700"
+								>{p.auto ? 'Quitárselo' : 'Dejar que lo haga solo'}</button
+							>
+						{/if}
+					</form>
+					{#if form && 'permitProblem' in form && form.permitProblem === p.id}
+						<p class="mt-2 text-sm text-red-300">{form.problem}</p>
+					{/if}
+				{/if}
+				{#if canTime(p) && !needsDevice(p)}
 					<!-- Its timer (#396): the plug's own, so it happens without Seilide. -->
 					<form
 						method="post"
 						action="?/timer"
-						use:enhance={() => {
+						use:enhance={async ({ formData }) => {
 							busy = p.id;
+							// Signed as the server will do it (#643): «Quitar», as it is; a timer, on and back.
+							const minutes = Number(formData.get('minutes') ?? 0);
+							const signed = minutes
+								? await signedSwitch(p, true, minutes * 60)
+								: await signedSwitch(p, p.output === true);
+							if (signed) formData.set('signed', signed);
 							return async ({ update }) => {
 								await update();
 								busy = null;
@@ -305,6 +418,9 @@
 				{#if form && 'switchProblem' in form && form.switchProblem === p.id}
 					<p class="mt-2 text-sm text-red-300">{form.problem}</p>
 				{/if}
+				{#if signProblem?.id === p.id}
+					<p class="mt-2 text-sm text-red-300">{signProblem.text}</p>
+				{/if}
 
 				{#if !p.waiting}
 					<dl class="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
@@ -329,6 +445,13 @@
 					</dl>
 
 					<div class="mt-4 border-t border-zinc-800 pt-3 text-sm">
+						{#if p.relayed && !p.auto}
+							<p class="mb-2 text-xs text-zinc-500">
+								Los horarios y la pausa los firma este aparato al cambiarlos. Lo que Seilide hace
+								solo a su hora (acabar el calentón tras la pausa, «que no se encienda esta tarde»),
+								las reglas y la voz, solo si le dejas hacerlo solo.
+							</p>
+						{/if}
 						{#if p.schedules.length}
 							<ul class="mb-2 space-y-1">
 								{#each p.schedules as sch (sch.id)}
@@ -336,7 +459,7 @@
 										<span class="min-w-0 flex-1 {p.paused ? 'text-zinc-500 line-through' : ''}"
 											>⏰ {scheduleText(sch)}</span
 										>
-										<form method="post" action="?/unschedule" use:enhance>
+										<form method="post" action="?/unschedule" use:enhance={thenSign}>
 											<input type="hidden" name="id" value={p.id} />
 											<input type="hidden" name="scheduleId" value={sch.id} />
 											<button
@@ -356,7 +479,7 @@
 										new Date(p.skipUntil)
 									)}</span
 								>
-								<form method="post" action="?/unskip" use:enhance>
+								<form method="post" action="?/unskip" use:enhance={thenSign}>
 									<input type="hidden" name="id" value={p.id} />
 									<button class="px-2 text-zinc-400 hover:text-white">Quitar</button>
 								</form>
@@ -368,7 +491,10 @@
 								action="?/schedule"
 								use:enhance={() =>
 									async ({ result, update }) => {
-										if (result.type === 'success') scheduling = null;
+										if (result.type === 'success') {
+											scheduling = null;
+											if (result.data?.sign) await applySigned(result.data.sign as ScheduleTarget);
+										}
 										await update();
 									}}
 								class="space-y-3"
@@ -436,7 +562,7 @@
 							<form
 								method="post"
 								action="?/pause"
-								use:enhance
+								use:enhance={thenSign}
 								class="mt-3 flex flex-wrap items-center gap-3"
 							>
 								<input type="hidden" name="id" value={p.id} />
@@ -769,11 +895,6 @@
 				Listo: el enchufe se está reiniciando y sale conectado en unos segundos.
 			</p>
 		{/if}
-
-		<details class="mt-4 text-sm">
-			<summary class="cursor-pointer text-zinc-400">Añadirlo a mano, con su dirección</summary>
-			<div class="mt-3">{@render byHand()}</div>
-		</details>
 	</section>
 {:else}
 	<section class={section}>

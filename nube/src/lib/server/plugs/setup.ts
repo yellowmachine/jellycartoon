@@ -1,4 +1,5 @@
 import { eq, isNotNull } from 'drizzle-orm';
+import type { Tool } from '../openrouter.ts';
 import { plug } from '../db/schema.ts';
 import { withFamily } from '../family.ts';
 import { familySatellites, nudgeSatellite } from '../satellites.ts';
@@ -141,4 +142,83 @@ export async function moveToSatellite(
 	}
 	await setHash(row.hash);
 	return { problem };
+}
+
+/** The window «añade un aparato» opened (#643), by family: for its page to show the link. */
+const openings = new Map<string, { satellite: string; url: string | null; until: number }>();
+
+/**
+ * «Añade un aparato», said to a satellite (#643): it opens its window for five minutes, only if it
+ * heard the order itself. Its page's address, for the voice and for Enchufes; or why not.
+ */
+export async function openEnrolment(familyId: string, satellite: { id: string; name: string }) {
+	try {
+		const done = await tasks.ask(satellite.id, { kind: 'abrir-alta' });
+		if (done.problem) return { problem: done.problem };
+		const until = done.until ?? Date.now() + 5 * 60_000;
+		openings.set(familyId, { satellite: satellite.name, url: done.url ?? null, until });
+		return { url: done.url ?? null, until };
+	} catch (e) {
+		if (!(e instanceof SatelliteSilent)) throw e;
+		return { problem: 'El satélite no contesta: puede que esté sin actualizar' };
+	}
+}
+
+/** The family's open window, if any: which satellite, its page, until when. */
+export function enrolmentOf(familyId: string) {
+	const open = openings.get(familyId);
+	if (!open || open.until <= Date.now()) return null;
+	return open;
+}
+
+/**
+ * A device given to the family's satellite with the code from its page (#643): its public key, its
+ * name and the MAC made with the code, which only the satellite with that code accepts. What it
+ * answers, signed, the device checks against the code's fingerprint: Seilide only carries it.
+ */
+export async function enrolDevice(
+	userId: string,
+	device: { publicKey: string; name: string; mac: string }
+): Promise<
+	{ enrolled: { fp: string; satellite: string; ack: string }; name: string } | { problem: string }
+> {
+	const satellites = await satellitesOf(userId);
+	if (!satellites.length) return { problem: 'Hace falta un satélite de voz en casa' };
+	let problem = 'El satélite no contesta: puede que esté apagado o sin actualizar';
+	for (const satellite of satellites) {
+		try {
+			const done = await tasks.ask(satellite.id, { kind: 'alta', ...device });
+			if (done.enrolled) {
+				openings.delete(await familyOf(userId));
+				return { enrolled: done.enrolled, name: satellite.name };
+			}
+			if (done.problem) problem = done.problem;
+		} catch (e) {
+			if (!(e instanceof SatelliteSilent)) throw e;
+		}
+	}
+	return { problem };
+}
+
+export const deviceEnrolTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'device_enrol',
+		description:
+			'Abre durante cinco minutos el alta de aparatos de este satélite (#643), para que un móvil o una tablet pueda encender y apagar los enchufes con su firma: «añade un aparato», «dar de alta el móvil», «abre el alta». Solo dicho a un satélite.',
+		parameters: { type: 'object', properties: {}, additionalProperties: false }
+	}
+};
+
+/** What `device_enrol` did, in words for the model. */
+export async function enrolByVoice(
+	familyId: string,
+	satellite: { id: string; name: string }
+): Promise<{ result: string; done: boolean }> {
+	const opened = await openEnrolment(familyId, satellite);
+	if ('problem' in opened) return { result: `No se ha abierto: ${opened.problem}.`, done: false };
+	return {
+		result: `Abierto cinco minutos. En el móvil o la tablet, dentro de la wifi de casa, que abra Enchufes en Seilide: ahí está el enlace a la página del satélite${opened.url ? ` (${opened.url})` : ''}, donde copia el código, y luego lo pega en «Dar de alta este aparato». Dilo corto, sin leer la dirección.`,
+		done: true
+	};
 }

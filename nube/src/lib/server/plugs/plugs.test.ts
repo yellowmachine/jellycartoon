@@ -39,6 +39,9 @@ const {
 	setKwhPrice,
 	setLocked,
 	setPaused,
+	applySignedSchedules,
+	scheduleTarget,
+	signedSwitch,
 	switchPlug,
 	updatePlug
 } = await import('./plugs.ts');
@@ -186,6 +189,44 @@ describe('enchufes', () => {
 		expect(lamp!.monthWh).toBeCloseTo(0.5);
 		// Another family cannot switch it.
 		expect(await switchPlug('otra', lampId, false)).toBe(false);
+	});
+
+	test('signed by a device (#643): passed on as it is, only if it says what was asked', async () => {
+		const [lamp] = await listPlugs('ana');
+		const deviceId = lamp!.deviceId ?? 'shellyplugmg3-1';
+		const order = (params: object, plug = deviceId) => ({
+			envelope: JSON.stringify({ v: 1, sat: 's', dev: 'd', plug, method: 'Switch.Set', params }),
+			sig: 'firma'
+		});
+		expect(signedSwitch(order({ id: 0, on: true, toggle_after: 60 }), deviceId)).toEqual({
+			on: true,
+			backAfterS: 60
+		});
+		expect(signedSwitch(order({ id: 0, on: true }, 'otro'), deviceId)).toBeNull();
+		expect(signedSwitch({ envelope: 'no', sig: 'x' }, deviceId)).toBeNull();
+		if (!lamp!.deviceId) return;
+		expect(await switchPlug('ana', lampId, false, undefined, order({ id: 0, on: true }))).toBe(
+			'mismatch'
+		);
+		const signed = order({ id: 0, on: false });
+		void switchPlug('ana', lampId, false, undefined, signed).catch(() => {});
+		await settle();
+		expect(lampWs.sent.at(-1)).toMatchObject({ method: 'Satelite.Firmada', params: signed });
+	});
+
+	test('signed schedules (#643): nothing to sign when Seilide does it; only a schedule order of that plug', async () => {
+		// Straight to Seilide (not through a satellite): Seilide syncs it itself.
+		expect(await scheduleTarget('A', lampId)).toBeNull();
+		const [lamp] = await listPlugs('ana');
+		const order = (method: string, plug = lamp!.deviceId) => ({
+			envelope: JSON.stringify({ v: 1, plug, method, params: { jobs: [], replace: [] } }),
+			sig: 'x'
+		});
+		expect(await applySignedSchedules('ana', lampId, order('Switch.Set'))).toBe(false);
+		expect(await applySignedSchedules('ana', lampId, order('Satelite.Horarios', 'otro'))).toBe(
+			false
+		);
+		expect(await applySignedSchedules('otra', lampId, order('Satelite.Horarios'))).toBe(false);
 	});
 
 	test('by voice for a while: the plug’s own timer, and when it ends said back', async () => {

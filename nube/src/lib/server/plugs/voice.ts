@@ -9,7 +9,7 @@ import {
 } from '#lib/plug-schedules.ts';
 import { kwhPriceText } from '#lib/kwh-price.ts';
 import type { Tool } from '../openrouter.ts';
-import { PlugOffline } from './hub.ts';
+import { PlugOffline, PlugRefused } from './hub.ts';
 import { HEAT_MS, kwhPriceIn, plugsOf, setPausedIn, setSkipIn, switchIn } from './plugs.ts';
 import {
 	energyText,
@@ -175,6 +175,12 @@ export async function switchByVoice(
 			};
 		return { result: `${p.name} ${word(on)}.`, done: true };
 	} catch (e) {
+		// Its satellite (#643): Seilide may not switch it by itself.
+		if (e instanceof PlugRefused)
+			return {
+				result: `${p.name} solo se enciende y se apaga desde un aparato dado de alta en el satélite: por voz no, salvo que en Enchufes le den permiso a Seilide para hacerlo solo.`,
+				done: false
+			};
 		if (e instanceof PlugOffline)
 			return {
 				result: `${p.name} no está conectado ahora: no se puede ${verb(on)}.`,

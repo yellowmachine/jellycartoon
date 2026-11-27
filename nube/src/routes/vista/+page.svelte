@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { signedSwitch } from '#lib/enchufes/firma.ts';
 	import '@fontsource/comic-neue/400.css';
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
@@ -252,8 +253,11 @@
 						<form
 							method="post"
 							action="/enchufes?/switch"
-							use:enhance={() => {
+							use:enhance={async ({ formData }) => {
 								switching = p.id;
+								// Through its satellite (#643): signed here, if this tablet is given to it.
+								const signed = await signedSwitch(p, !on);
+								if (signed) formData.set('signed', signed);
 								plugProblem = null;
 								// Another route's action: no `update()`, which would go there (Kit 3); the
 								// plug's new state comes by its events.

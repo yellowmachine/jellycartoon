@@ -23,7 +23,10 @@ const kitchen = (familyId: string, userId: string | null): Kitchen => ({
 	run: (fn) => asFamily(familyId, fn)
 });
 
-mock.module('#lib/server/plugs/hub.ts', () => ({ PlugOffline: class extends Error {} }));
+mock.module('#lib/server/plugs/hub.ts', () => ({
+	PlugOffline: class extends Error {},
+	PlugRefused: class extends Error {}
+}));
 mock.module('#lib/server/plugs/plugs.ts', () => ({
 	HEAT_MS: 0,
 	setPausedIn: async () => ({ heats: false }),

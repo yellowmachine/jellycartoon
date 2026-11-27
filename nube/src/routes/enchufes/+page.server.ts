@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { PlugOffline } from '#lib/server/plugs/hub.ts';
+import { PlugOffline, PlugRefused, type SignedOrder } from '#lib/server/plugs/hub.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import {
 	addSchedule,
@@ -18,11 +18,16 @@ import {
 	setNotices,
 	setPaused,
 	setSkipIn,
+	applySignedSchedules,
+	permitPlug,
+	scheduleTarget,
 	switchPlug,
 	updatePlug
 } from '#lib/server/plugs/plugs.ts';
 import {
 	addFoundPlug,
+	enrolDevice,
+	enrolmentOf,
 	moveToSatellite,
 	satellitesOf,
 	searchPlugs
@@ -36,8 +41,35 @@ export const load: PageServerLoad = async ({ locals }) => ({
 	/** Written by hand: it wins over the bill's. */
 	manual: await manualKwhPrice(locals.user!.id),
 	/** With any, plugs are found and set up by them (#396). */
-	satellites: (await satellitesOf(locals.user!.id)).length
+	satellites: (await satellitesOf(locals.user!.id)).length,
+	/** «Añade un aparato» said to a satellite (#643): its page, while open. */
+	enrolment: enrolmentOf((await kitchenOf(locals.user!.id)).familyId)
 });
+
+/** A device's signed order (#643), as its page sent it; null without one. */
+function signedOf(form: FormData): SignedOrder | null {
+	try {
+		const o = JSON.parse(String(form.get('signed') ?? '')) as Record<string, unknown>;
+		return typeof o.envelope === 'string' &&
+			typeof o.sig === 'string' &&
+			o.envelope.length < 2000 &&
+			o.sig.length < 200
+			? { envelope: o.envelope, sig: o.sig }
+			: null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * After a schedule or a pause changed (#643): what this device is to sign for its satellite to do
+ * it, if Seilide may not do it alone; null, Seilide did it.
+ */
+const signFor = async (userId: string, id: string) =>
+	scheduleTarget((await kitchenOf(userId)).familyId, id);
+
+/** Refused by its satellite (#643): its reason, for the page. */
+const refusedProblem = (e: PlugRefused) => e.message;
 
 const nameAndKind = (form: FormData) => {
 	const name = String(form.get('name') ?? '').trim();
@@ -76,17 +108,66 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');
 		try {
-			const done = await switchPlug(locals.user!.id, id, form.get('on') === 'true');
+			const done = await switchPlug(
+				locals.user!.id,
+				id,
+				form.get('on') === 'true',
+				undefined,
+				signedOf(form) ?? undefined
+			);
 			if (!done) return fail(404, { problem: 'Ese enchufe ya no está' });
 			if (done === 'locked') return fail(409, { switchProblem: id, problem: LOCKED_PROBLEM });
 			if (done === 'paused')
 				return fail(409, { switchProblem: id, problem: 'Está en pausa: quítale la pausa antes' });
+			if (done === 'mismatch')
+				return fail(400, { switchProblem: id, problem: 'La firma no es de esta orden' });
 		} catch (e) {
 			if (e instanceof PlugOffline)
 				return fail(409, { switchProblem: id, problem: 'El enchufe no está conectado' });
+			if (e instanceof PlugRefused)
+				return fail(403, { switchProblem: id, problem: refusedProblem(e) });
 			throw e;
 		}
 		return { switched: id };
+	},
+	/**
+	 * Whether Seilide may switch it by itself (#643): its schedules, rules, the voice. Only signed by
+	 * a device given to its satellite, which keeps it.
+	 */
+	permit: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const signed = signedOf(form);
+		if (!signed)
+			return fail(400, { permitProblem: id, problem: 'Hace falta este aparato dado de alta' });
+		try {
+			if (!(await permitPlug(locals.user!.id, id, signed)))
+				return fail(404, { problem: 'Ese enchufe ya no está' });
+		} catch (e) {
+			if (e instanceof PlugOffline)
+				return fail(409, { permitProblem: id, problem: 'El enchufe no está conectado' });
+			if (e instanceof PlugRefused)
+				return fail(403, { permitProblem: id, problem: refusedProblem(e) });
+			throw e;
+		}
+		return { permitted: id };
+	},
+	/**
+	 * This device given to the family's satellite (#643): its key, its name and the MAC made with
+	 * the code from the satellite's page. What the satellite answers goes back for the device to
+	 * check.
+	 */
+	enrol: async ({ request, locals }) => {
+		const form = await request.formData();
+		const field = (name: string, max: number) => String(form.get(name) ?? '').slice(0, max);
+		const publicKey = field('publicKey', 300);
+		const name = field('name', 40);
+		const mac = field('mac', 100);
+		if (!publicKey || !mac)
+			return fail(400, { enrolProblem: 'Pega el código de la página del satélite' });
+		const done = await enrolDevice(locals.user!.id, { publicKey, name, mac });
+		if ('problem' in done) return fail(400, { enrolProblem: done.problem });
+		return { enrolled: done.enrolled, satelliteName: done.name };
 	},
 	/**
 	 * Its timer (#396): on now and back off after `minutes` («Encender durante» from off, «Apagar
@@ -101,9 +182,10 @@ export const actions: Actions = {
 		if (minutes !== null && !TIMER_MINUTES.includes(minutes as never))
 			return fail(400, { switchProblem: id, problem: 'Elige uno de los botones' });
 		try {
+			const signed = signedOf(form) ?? undefined;
 			const done = minutes
-				? await switchPlug(locals.user!.id, id, true, minutes * 60)
-				: await switchPlug(locals.user!.id, id, form.get('on') === 'true');
+				? await switchPlug(locals.user!.id, id, true, minutes * 60, signed)
+				: await switchPlug(locals.user!.id, id, form.get('on') === 'true', undefined, signed);
 			if (!done) return fail(404, { problem: 'Ese enchufe ya no está' });
 			if (done === 'locked') return fail(409, { switchProblem: id, problem: LOCKED_PROBLEM });
 			if (done === 'paused')
@@ -113,9 +195,13 @@ export const actions: Actions = {
 					switchProblem: id,
 					problem: 'Está calentando largo tras la pausa: ahora no lleva temporizador'
 				});
+			if (done === 'mismatch')
+				return fail(400, { switchProblem: id, problem: 'La firma no es de esta orden' });
 		} catch (e) {
 			if (e instanceof PlugOffline)
 				return fail(409, { switchProblem: id, problem: 'El enchufe no está conectado' });
+			if (e instanceof PlugRefused)
+				return fail(403, { switchProblem: id, problem: refusedProblem(e) });
 			throw e;
 		}
 		return { switched: id };
@@ -148,16 +234,34 @@ export const actions: Actions = {
 			end: String(form.get('end') ?? '')
 		});
 		if ('problem' in done) return fail(400, { scheduleProblem: id, problem: done.problem });
-		return { scheduled: id };
+		return { scheduled: id, sign: await signFor(locals.user!.id, id) };
 	},
 	unschedule: async ({ request, locals }) => {
 		const form = await request.formData();
-		await deleteSchedule(
-			locals.user!.id,
-			String(form.get('id') ?? ''),
-			Number(form.get('scheduleId'))
-		);
-		return { unscheduled: true };
+		const id = String(form.get('id') ?? '');
+		await deleteSchedule(locals.user!.id, id, Number(form.get('scheduleId')));
+		return { unscheduled: true, sign: await signFor(locals.user!.id, id) };
+	},
+	/** The schedules a device signed (#643), done by its satellite. */
+	applySchedules: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const signed = signedOf(form);
+		if (!signed) return fail(400, { scheduleProblem: id, problem: 'Falta la firma' });
+		try {
+			if (!(await applySignedSchedules(locals.user!.id, id, signed)))
+				return fail(404, { scheduleProblem: id, problem: 'Ese enchufe ya no está' });
+		} catch (e) {
+			if (e instanceof PlugOffline)
+				return fail(409, { scheduleProblem: id, problem: 'El enchufe no está conectado' });
+			if (e instanceof PlugRefused)
+				return fail(403, { scheduleProblem: id, problem: refusedProblem(e) });
+			return fail(500, {
+				scheduleProblem: id,
+				problem: e instanceof Error ? e.message : 'No se pudo'
+			});
+		}
+		return { applied: id };
 	},
 	/** «En pausa», or back: out of a long pause a water heater heats long first. */
 	pause: async ({ request, locals }) => {
@@ -165,13 +269,14 @@ export const actions: Actions = {
 		const id = String(form.get('id') ?? '');
 		const { heats, locked } = await setPaused(locals.user!.id, id, form.get('paused') === 'true');
 		if (locked) return fail(409, { switchProblem: id, problem: LOCKED_PROBLEM });
-		return { pausedId: id, heats };
+		return { pausedId: id, heats, sign: await signFor(locals.user!.id, id) };
 	},
 	/** A skip taken off (#557): its schedules switch it on again from now. */
 	unskip: async ({ request, locals }) => {
 		const id = String((await request.formData()).get('id') ?? '');
 		const { locked } = await setSkipIn(await kitchenOf(locals.user!.id), id, null, null);
 		if (locked) return fail(409, { switchProblem: id, problem: LOCKED_PROBLEM });
+		return { sign: await signFor(locals.user!.id, id) };
 	},
 	/** «Con candado» or without (any adult), against switching it off by a slip. */
 	lock: async ({ request, locals }) => {
