@@ -6,9 +6,13 @@ import { WAKE_WORDS, type WakeWordModel } from 'comun/wake-words.ts';
  * «@ia» works too, whatever the word.
  */
 
-/** Its name: the wake word, without its greeting («hola casita», «Oye, Alizée»). */
+/** Its name: the wake word, without its greeting («hola casita», «Oye, Alizée», «Bonjour, Alizée»). */
 export const assistantName = (word: WakeWordModel) =>
-	word === 'hola_casita' ? 'Casita' : word === 'oye_alizee' ? 'Alizée' : WAKE_WORDS[word];
+	word === 'hola_casita'
+		? 'Casita'
+		: word === 'oye_alizee' || word === 'bonjour_alizee'
+			? 'Alizée'
+			: WAKE_WORDS[word];
 
 /** How it is written after «@»: «makoto». */
 export const handleOf = (name: string) =>

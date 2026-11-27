@@ -13,6 +13,9 @@
  * «Oye, Alizée», ours too (2026-11-25, 100.000 examples), with «s», «c» or the French «z»: over
  * «Kusanagi» with music in that comparison (83 % against 79 %), below without it (90 % against 94 %)
  * and with voices it was not trained on (67 % against 98 %), to be tried with ours.
+ * «Bonjour, Alizée», ours too (2026-11-27, 100.000 examples, with French voices too): below
+ * «Kusanagi» in that comparison (84 % against 94 % without music); with voices it was not trained on,
+ * said as here («bonyur alisé»), 92 % and 100 %, by a French one only 17 %; never by half of it.
  */
 export const WAKE_WORDS = {
 	hola_casita: 'hola casita',
@@ -21,7 +24,8 @@ export const WAKE_WORDS = {
 	ocarina: 'Ocarina',
 	kusanagi: 'Kusanagi',
 	makoto: 'Makoto',
-	oye_alizee: 'Oye, Alizée'
+	oye_alizee: 'Oye, Alizée',
+	bonjour_alizee: 'Bonjour, Alizée'
 } as const;
 
 export type WakeWordModel = keyof typeof WAKE_WORDS;
