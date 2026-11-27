@@ -4,6 +4,7 @@ import { ringingFor, watchAlarms } from '#lib/server/alarms/alarms.ts';
 import { directHearing } from '#lib/server/house.ts';
 import { plugTasksFor } from '#lib/server/plugs/setup.ts';
 import {
+	languagesOf,
 	satelliteHere,
 	satelliteRequest,
 	saysFor,
@@ -14,6 +15,7 @@ import {
 import { sseResponse } from '#lib/server/sse.ts';
 import { familyWords, heardPath } from '#lib/server/voice/heard-words.ts';
 import { hearsByHouse } from '#lib/server/voice/settings.ts';
+import { hearingLanguage } from '#lib/satellite-language.ts';
 import { greetingsOf, satelliteVoiceOf, voiceKey } from '#lib/server/voice/satellite-voice.ts';
 
 /**
@@ -54,9 +56,16 @@ export const GET: RequestHandler = async ({ request }) => {
 				snapserverOf(k, satellite.id),
 				satelliteVoiceOf(k),
 				// None when the family hears by OpenRouter always: then through here.
-				Promise.all([hearsByHouse(k), familyWords(k)])
-					.then(([byHouse, words]) =>
-						byHouse ? directHearing(k.familyId, satellite.id, heardPath(words), send) : null
+				Promise.all([hearsByHouse(k), familyWords(k), languagesOf(k, satellite.id)])
+					.then(([byHouse, words, { heard }]) =>
+						byHouse
+							? directHearing(
+									k.familyId,
+									satellite.id,
+									heardPath(words, hearingLanguage(heard)),
+									send
+								)
+							: null
 					)
 					.catch(() => null)
 			])

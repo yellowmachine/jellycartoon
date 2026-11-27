@@ -1,5 +1,6 @@
 import type { VoiceTurn } from 'comun/voice.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
+import { saidIn, type AnswerLanguage } from '#lib/satellite-language.ts';
 
 /**
  * The questions to think about (an opinion, philosophy, a long explanation): the fast voice model
@@ -15,14 +16,18 @@ const HISTORY = 12;
 /** A thinking model's answer, said aloud: more than this and the person gives up waiting. */
 const TIMEOUT_MS = 40_000;
 
-export const CONVERSE_SYSTEM = [
-	'Eres la voz de una casa, charlando con alguien de la familia que quiere pensar en voz alta contigo:',
-	'filosofía, una opinión, el porqué de algo, una explicación de fondo.',
-	`Contesta en ${CONVERSE_SENTENCES} frases, unas 100 a 130 palabras en total, en español de España, como se habla: sin listas, títulos, emojis ni formato, porque se lee en voz alta. Frases claras, no muy largas: se escuchan, no se releen.`,
-	'Ten ideas propias y dilas con matices; si hay posturas distintas, nómbralas en una frase. Nada de rodeos ni de «gran pregunta».',
-	'Puedes acabar con una pregunta para seguir la conversación, pero no siempre.',
-	'Si te dicen cómo hablar (el carácter de la casa o de quien habla), es solo el tono.'
-].join(' ');
+/** How it is told to answer; in `language`, a satellite's (#647), Spanish from Spain by default. */
+export const converseSystem = (language: AnswerLanguage = 'es') =>
+	[
+		'Eres la voz de una casa, charlando con alguien de la familia que quiere pensar en voz alta contigo:',
+		'filosofía, una opinión, el porqué de algo, una explicación de fondo.',
+		`Contesta en ${CONVERSE_SENTENCES} frases, unas 100 a 130 palabras en total, ${language === 'es' ? 'en español de España' : saidIn(language)}, como se habla: sin listas, títulos, emojis ni formato, porque se lee en voz alta. Frases claras, no muy largas: se escuchan, no se releen.`,
+		'Ten ideas propias y dilas con matices; si hay posturas distintas, nómbralas en una frase. Nada de rodeos ni de «gran pregunta».',
+		'Puedes acabar con una pregunta para seguir la conversación, pero no siempre.',
+		'Si te dicen cómo hablar (el carácter de la casa o de quien habla), es solo el tono.'
+	].join(' ');
+
+export const CONVERSE_SYSTEM = converseSystem();
 
 /** What was said before, as lines for the prompt. */
 export function conversationLines(history: VoiceTurn[]) {
@@ -35,6 +40,8 @@ export function conversationLines(history: VoiceTurn[]) {
 /** Its answer, spoken; an error if it could not (the fast one answers then). */
 export async function converse(request: {
 	apiKey: string;
+	/** What it answers in (#647); Spanish, none. */
+	language?: AnswerLanguage;
 	model: string;
 	question: string;
 	history: VoiceTurn[];
@@ -45,7 +52,7 @@ export async function converse(request: {
 	const { texto } = await completeJson<{ texto: string }>({
 		apiKey: request.apiKey,
 		label: 'Voz: conversar',
-		system: CONVERSE_SYSTEM,
+		system: converseSystem(request.language),
 		prompt: [
 			...request.context,
 			...(before ? [`Lo hablado hasta ahora:\n${before}`] : []),

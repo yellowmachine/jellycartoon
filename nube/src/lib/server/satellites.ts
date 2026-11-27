@@ -7,6 +7,12 @@ import { voiceSatellite } from './db/schema.ts';
 import { asFamily, withFamily } from './family.ts';
 import { houseKitchen, type Kitchen } from './fridge.ts';
 import { newSatelliteKey, satelliteKeyScope, type KeySatellite } from './satellite-key-scope.ts';
+import {
+	answerLanguage,
+	heardLanguages,
+	type AnswerLanguage,
+	type SatelliteLanguage
+} from '#lib/satellite-language.ts';
 
 /**
  * The voice satellites Seilide serves (#296): given in Ajustes → Familia, each with its key, which
@@ -70,6 +76,38 @@ export async function setConversation(userId: string, id: string, on: boolean) {
 	);
 }
 
+/** The languages it is spoken to in, and the one it answers in (#647), as Ajustes says. */
+export async function languagesOf(
+	k: Kitchen,
+	id: string
+): Promise<{ heard: SatelliteLanguage[]; answer: AnswerLanguage }> {
+	const [row] = await k.run((tx) =>
+		tx
+			.select({ languages: voiceSatellite.languages, answer: voiceSatellite.answerLanguage })
+			.from(voiceSatellite)
+			.where(eq(voiceSatellite.id, id))
+	);
+	const heard = heardLanguages(row?.languages);
+	return { heard, answer: answerLanguage(row?.answer, heard) };
+}
+
+/** Its languages changed, in Ajustes: told to it at once (where it hears directly, in which). */
+export async function setLanguages(
+	userId: string,
+	id: string,
+	languages: unknown[],
+	answer: unknown
+) {
+	const heard = heardLanguages(languages);
+	await withFamily(userId, (tx) =>
+		tx
+			.update(voiceSatellite)
+			.set({ languages: heard, answerLanguage: answerLanguage(answer, heard) })
+			.where(eq(voiceSatellite.id, id))
+	);
+	tellSatellite(id);
+}
+
 /** The satellite a request comes from, and its family's kitchen: a 401 without a valid key. */
 export async function satelliteRequest(
 	request: Request
@@ -102,8 +140,8 @@ export async function satellitesChanged(familyId: string) {
 export const snapclientIdOf = (id: string) => `satelite-${id.slice(0, 8)}`;
 
 /** For Ajustes: never the keys, only how they start. */
-export function listSatellites(userId: string) {
-	return withFamily(userId, (tx) =>
+export async function listSatellites(userId: string) {
+	const rows = await withFamily(userId, (tx) =>
 		tx
 			.select({
 				id: voiceSatellite.id,
@@ -111,12 +149,18 @@ export function listSatellites(userId: string) {
 				start: voiceSatellite.start,
 				snapserver: voiceSatellite.snapserver,
 				conversation: voiceSatellite.conversation,
+				languages: voiceSatellite.languages,
+				answerLanguage: voiceSatellite.answerLanguage,
 				createdAt: voiceSatellite.createdAt,
 				lastSeenAt: voiceSatellite.lastSeenAt
 			})
 			.from(voiceSatellite)
 			.orderBy(asc(voiceSatellite.name))
 	);
+	return rows.map(({ languages, answerLanguage: answer, ...s }) => {
+		const heard = heardLanguages(languages);
+		return { ...s, languages: heard, answerLanguage: answerLanguage(answer, heard) };
+	});
 }
 
 /** A new one: its key, shown once. */

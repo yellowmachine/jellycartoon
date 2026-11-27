@@ -7,13 +7,17 @@ import { fromCloud } from '#lib/server/media-api.ts';
 import { validHearingKey } from '#lib/server/voice/hearing-key.ts';
 import { transcribe, voiceEnabled } from '#lib/server/voice/whisper.ts';
 
+/** A language Whisper takes, or `auto`: anything else, the one it started with. */
+const LANGUAGE = /^(?:[a-z]{2}|auto)$/;
+
 /** An order is a few seconds: more than this is not one. */
 const MAX_BYTES = 5_000_000;
 
 /**
  * What was recorded in the cloud (#253: its road mode's microphone), as it is: the text that was
  * said, by the house's Whisper, which knows its music's names; `?palabras=`, the family's own
- * (where it lives, its people), for Whisper to expect them too. Also from a satellite of the
+ * (where it lives, its people), for Whisper to expect them too; `?idioma=`, the language it is
+ * said in (#647, a satellite's), or `auto`. Also from a satellite of the
  * cloud's, directly (#430), with the key that opens only this.
  */
 export const POST: RequestHandler = async ({ request, url }) => {
@@ -25,7 +29,12 @@ export const POST: RequestHandler = async ({ request, url }) => {
 	if (audio.size > MAX_BYTES) error(413, 'Demasiado largo');
 	try {
 		const started = performance.now();
-		const text = await transcribe(audio, url.searchParams.get('palabras') ?? '');
+		const language = url.searchParams.get('idioma');
+		const text = await transcribe(
+			audio,
+			url.searchParams.get('palabras') ?? '',
+			language && LANGUAGE.test(language) ? language : null
+		);
 		log.info('voz', `Transcrito para Seilide en ${Math.round(performance.now() - started)} ms`, {
 			bytes: audio.size
 		});

@@ -52,6 +52,37 @@ GitHub podría publicar una imagen, pero no firmarla, y el satélite no la insta
 Una versión que salió sin firmar no se instala nunca: se queda en la anterior hasta la siguiente
 firmada.
 
+### La clave de firmar
+
+La privada, `cosign.key`, nunca va al repositorio; la pública, `satellite/cosign.pub`, sí.
+
+- **Crearla, una sola vez**, en una terminal normal (pide la contraseña dos veces):
+
+  ```sh
+  mkdir -p ~/.config/seilide && cd ~/.config/seilide && docker run --rm -it --user "$(id -u)" \
+    -v "$PWD:/w" -w /w ghcr.io/sigstore/cosign/cosign:v3.1.6 generate-key-pair
+  ```
+
+  Deja `cosign.key` y `cosign.pub` en `~/.config/seilide`. El `cosign.pub` se copia a
+  `satellite/cosign.pub` y a cada satélite.
+
+- **Guardarla:** la contraseña en el gestor de contraseñas, y una copia de `cosign.key` en otro
+  sitio distinto. El fichero va cifrado con la contraseña: juntos, quien entre en ese sitio tiene
+  las dos cosas. La contraseña sola no sirve sin el fichero.
+- **Firmar desde otra máquina** (un clon nuevo del repositorio) necesita:
+  - `cosign.key` en `~/.config/seilide/`, o en otra ruta con `COSIGN_KEY=/ruta/cosign.key`;
+  - su contraseña;
+  - `gh` con sesión y permiso de paquetes: `gh auth login` y luego
+    `gh auth refresh -h github.com -s write:packages`;
+  - Docker y `jq`.
+
+  El script comprueba que la clave es la de `satellite/cosign.pub` antes de firmar. Cada máquina con
+  la clave es un sitio más de donde robarla: mejor solo una, y la copia.
+
+- **Si se pierde** (o se teme que la tiene otro): se crea otra y su `cosign.pub` va al repositorio y
+  a cada satélite, a mano por ssh, junto a su `actualizar.sh`. Mientras tanto, los satélites siguen
+  con su versión; solo dejan de actualizarse.
+
 ## Los ajustes del `.env`
 
 | Variable                   | Por defecto         | Para qué                                                                                                                                                                                                                   |
@@ -85,6 +116,19 @@ Carretera y Cocina. Los satélites cambian en unos segundos, sin reiniciar, y la
 arranquen sin conexión. Si dos aparatos oyen la misma orden, Seilide solo hace la primera en llegar
 (`order-twins.ts`), salvo en Carretera y en lo que llega por la app de casa. `WAKE_THRESHOLD` sigue siendo de cada
 satélite, porque depende de su micrófono y de su habitación.
+
+## En qué idioma se le habla
+
+Cada satélite tiene sus idiomas en **Ajustes → Familia → «Satélites de voz» → Le hablan en**:
+español, inglés o francés (#647). Con uno solo, el reconocimiento (el Whisper de la casa, también
+directo, o OpenRouter) oye en ese idioma, y contesta en él. Con varios, el reconocimiento adivina
+cuál es, y **Contesta en** elige: uno de ellos o «Como le hablen». Una orden corta puede salir en el
+idioma que no es, así que con uno solo oye mejor. Lo cambia al momento, sin tocar la Raspberry. La
+palabra que lo despierta es la misma en cualquier idioma.
+
+Por ahora, en inglés o francés no dice las frases de relleno mientras piensa, y lo que dice por su
+cuenta (sin clave, sin saldo, los avisos) sigue en español. La voz es la de la familia: «Cómo habla»
+con un acento de aquí lo lleva también al otro idioma.
 
 ## Con la música de la casa (Snapcast)
 

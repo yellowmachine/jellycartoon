@@ -1,0 +1,2 @@
+ALTER TABLE "voice_satellite" ADD COLUMN "languages" jsonb DEFAULT '["es"]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "voice_satellite" ADD COLUMN "answer_language" text DEFAULT 'es' NOT NULL;

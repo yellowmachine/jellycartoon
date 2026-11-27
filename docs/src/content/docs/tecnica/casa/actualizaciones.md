@@ -44,6 +44,15 @@ WUD_PASSWORD="..."                # contraseña del usuario admin de WUD; sin «
 3. **Espera a que Actions construya las imágenes** (unos minutos). Desde ahí, WUD las instala esa
    madrugada, o el administrador con «Actualizar ahora». Cuando terminan (o fallan) llega un aviso a
    Slack, por el _Incoming Webhook_ del secreto `SLACK_WEBHOOK_URL` del repositorio.
+4. **Firma la imagen del satélite** cuando acabe la Action «Docker image» del release, en una
+   terminal normal porque pide la contraseña de la clave:
+
+   ```sh
+   scripts/firmar-satelite.sh v1.2.0
+   ```
+
+   Sin firma, los satélites no la instalan y se quedan en la anterior. Qué hace falta para firmar:
+   [La clave de firmar](/tecnica/satelite/#la-clave-de-firmar).
 
 WUD actualiza las imágenes, nunca `compose.prod.yaml` ni el `.env`. Si un cambio necesita tocarlos,
 dilo en las notas («requiere actualizar el compose»): en cada casa hay que traer el compose nuevo
