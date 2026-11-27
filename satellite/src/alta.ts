@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import type { PlugTask, PlugTaskResult } from '../../packages/comun/src/voice.ts';
 import { isHomeIp, RELAY_PORT } from './plugs.ts';
-import type { Trust } from './trust.ts';
+import { ANY_PLUG, type Trust } from './trust.ts';
 
 /**
  * Giving a device to the satellite (#643, phase 2): «añade un aparato», said to it, opens the
@@ -74,6 +74,14 @@ export function doEnrolTask(
 		const done = trust.enrol(task.publicKey, task.name, task.mac);
 		if (!done.ok) return { id: task.id, problem: done.why };
 		return { id: task.id, enrolled: { fp: done.fp, satellite: done.satellite, ack: done.ack } };
+	}
+	if (task.kind === 'olvidar') {
+		// Only the device itself: its own signature, and it is the one that leaves.
+		const signed = trust.check(task.envelope, task.sig, ANY_PLUG);
+		if (!signed.ok) return { id: task.id, problem: signed.why };
+		if (signed.method !== 'Satelite.Olvidar') return { id: task.id, problem: 'no se firma eso' };
+		trust.leave(signed.fp);
+		return { id: task.id, forgotten: true };
 	}
 	return null;
 }

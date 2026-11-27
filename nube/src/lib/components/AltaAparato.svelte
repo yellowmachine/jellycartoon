@@ -4,6 +4,7 @@
 		acceptEnrolment,
 		enrolRequest,
 		forget,
+		leaveOrder,
 		parseCode,
 		type SatelliteTrust
 	} from '#lib/enchufes/firma.ts';
@@ -17,11 +18,14 @@
 	let {
 		devices,
 		enrolment,
+		pages,
 		onchange
 	}: {
 		devices: SatelliteTrust[];
 		/** The window open now, if Seilide knows of it: which satellite, its page, until when. */
 		enrolment: { satellite: string; url: string | null; until: number } | null;
+		/** Each satellite's page, as it last said: linked even while closed. */
+		pages: { satellite: string; url: string }[];
 		onchange: () => void;
 	} = $props();
 
@@ -29,6 +33,8 @@
 	let name = $state('');
 	let problem = $state<string | null>(null);
 	let sending = $state(false);
+	/** Why taking it off the satellite did not work, for which. */
+	let leaving = $state<{ fp: string; problem: string } | null>(null);
 	const clock = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit' });
 </script>
 
@@ -39,14 +45,54 @@
 			<p class="text-sm text-emerald-300">
 				✓ Dado de alta en el satélite «{d.name}» como «{d.as}»: enciende y apaga con su firma.
 			</p>
-			<button
-				type="button"
-				class="mt-1 text-xs text-zinc-500 hover:text-red-400"
-				onclick={async () => {
-					await forget(d.fp);
-					onchange();
-				}}>Olvidar en este aparato</button
+			<!-- Taken off the satellite's list by its own signature, then forgotten here. -->
+			<form
+				method="post"
+				action="?/forget"
+				use:enhance={async ({ formData, cancel }) => {
+					leaving = null;
+					const order = await leaveOrder(d.fp);
+					if (!order) {
+						await forget(d.fp);
+						onchange();
+						return cancel();
+					}
+					formData.set('envelope', order.envelope);
+					formData.set('sig', order.sig);
+					return async ({ result }) => {
+						if (result.type === 'success') {
+							await forget(d.fp);
+							onchange();
+							return;
+						}
+						leaving = {
+							fp: d.fp,
+							problem: String(
+								(result.type === 'failure' && result.data?.forgetProblem) || 'No se pudo'
+							)
+						};
+					};
+				}}
 			>
+				<button class="mt-1 text-xs text-zinc-500 hover:text-red-400"
+					>Quitar este aparato del satélite</button
+				>
+			</form>
+			{#if leaving?.fp === d.fp}
+				<p class="text-xs text-red-300">
+					{leaving.problem}.
+					<button
+						type="button"
+						class="underline"
+						onclick={async () => {
+							await forget(d.fp);
+							leaving = null;
+							onchange();
+						}}>Olvidarlo solo aquí</button
+					>
+					(seguirá en la lista del satélite: quítalo en su página con el alta abierta).
+				</p>
+			{/if}
 		{/each}
 	{:else}
 		<p class="mb-3 text-sm text-zinc-300">
@@ -64,6 +110,13 @@
 						rel="noopener"
 						class="text-amber-400 hover:underline">{enrolment.url}</a
 					>, abierta hasta las {clock.format(new Date(enrolment.until))})
+				{:else if pages.length}
+					{#each pages as p, i (p.url)}{i ? ', ' : ' '}<a
+							href={p.url}
+							target="_blank"
+							rel="noopener"
+							class="text-amber-400 hover:underline">{p.url}</a
+						>{pages.length > 1 ? ` (${p.satellite})` : ''}{/each}
 				{:else}
 					(<code>http://&lt;IP del satélite&gt;:8790/alta</code>)
 				{/if}

@@ -47,6 +47,8 @@ interface Saved {
 export const ENROLL_MS = 5 * 60_000;
 /** An order older or newer than this, by the satellite's clock: not taken. */
 export const ORDER_SKEW_MS = 2 * 60_000;
+/** For `check`: an order about the satellite, not a plug. */
+export const ANY_PLUG = Symbol('ningún enchufe');
 const MAX_DEVICES = 50;
 const MAX_NAME = 40;
 
@@ -81,8 +83,8 @@ export interface Envelope {
 	sat: string;
 	/** The device that signs it. */
 	dev: string;
-	/** The Shelly it is for. */
-	plug: string;
+	/** The Shelly it is for; null, about the satellite itself (`Satelite.Olvidar`). */
+	plug: string | null;
 	method: string;
 	params?: Record<string, unknown>;
 	/** When it was made, in ms. */
@@ -194,6 +196,10 @@ export function createTrust(file: string, now: () => number = Date.now) {
 			save((s) => ({ ...s, devices: s.devices.filter((d) => d.fp !== fp) }));
 			return true;
 		},
+		/** A device that asked itself to leave, signed: no window needed, only it can. */
+		leave(fp: string) {
+			save((s) => ({ ...s, devices: s.devices.filter((d) => d.fp !== fp) }));
+		},
 		setAuto(shellyId: string, on: boolean) {
 			save((s) => ({ ...s, auto: { ...s.auto, [shellyId]: on } }));
 		},
@@ -206,7 +212,11 @@ export function createTrust(file: string, now: () => number = Date.now) {
 		 * plug, recent, not seen before. Its method and parameters, to be checked against what is
 		 * allowed.
 		 */
-		check(text: string, sig: string, shellyId: string | null) {
+		/**
+		 * A device's signed order: for that plug, or, with `ANY_PLUG`, about the satellite itself
+		 * (`Satelite.Olvidar`), which names no plug.
+		 */
+		check(text: string, sig: string, shellyId: string | null | typeof ANY_PLUG) {
 			let e: Envelope;
 			try {
 				e = JSON.parse(text) as Envelope;
@@ -216,7 +226,7 @@ export function createTrust(file: string, now: () => number = Date.now) {
 			if (!e || e.v !== 1 || typeof e.method !== 'string' || typeof e.nonce !== 'string')
 				return { ok: false as const, why: 'orden firmada sin sentido' };
 			if (e.sat !== ownFp) return { ok: false as const, why: 'firmada para otro satélite' };
-			if (!shellyId || e.plug !== shellyId)
+			if (shellyId === ANY_PLUG ? e.plug !== null : !shellyId || e.plug !== shellyId)
 				return { ok: false as const, why: 'firmada para otro enchufe' };
 			const device = saved.devices.find((d) => d.fp === e.dev);
 			if (!device) return { ok: false as const, why: 'el aparato no está dado de alta' };
@@ -228,7 +238,13 @@ export function createTrust(file: string, now: () => number = Date.now) {
 			if (!verifies(keyOf(device.spki), text, sig))
 				return { ok: false as const, why: 'la firma no vale' };
 			seen.set(e.nonce, at + 2 * ORDER_SKEW_MS);
-			return { ok: true as const, method: e.method, params: e.params, device: device.name };
+			return {
+				ok: true as const,
+				method: e.method,
+				params: e.params,
+				device: device.name,
+				fp: device.fp
+			};
 		}
 	};
 }

@@ -91,6 +91,17 @@ const BEAT_MS = 3 * 60_000;
 /** Its beat, every minute. */
 export const satelliteBeat = (id: string) => void beats.set(id, Date.now());
 
+/** Its page of devices in the home's network (#643), as its beat says: for Enchufes' link. */
+const pages = new Map<string, string>();
+/** Only an address of the home's network, as the satellite makes it: nothing else is linked. */
+const PAGE = /^http:\/\/(10|172|192)\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{2,5}\/alta$/;
+
+export function satellitePageSaid(id: string, url: unknown) {
+	if (typeof url === 'string' && PAGE.test(url)) pages.set(id, url);
+}
+
+export const satellitePage = (id: string) => pages.get(id) ?? null;
+
 /** A satellite connected; the function, to call when it goes. */
 export function satelliteHere(id: string, companion: boolean) {
 	const p = present.get(id) ?? { connections: 0, companion: 0 };

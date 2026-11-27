@@ -298,11 +298,18 @@ export async function answerCompanion(wav: Uint8Array) {
 	return { text: text ?? '', reply };
 }
 
-/** Every minute, a beat to Seilide (#469): there, for «Compañía». Never fails. */
-export function startBeats() {
+/**
+ * Every minute, a beat to Seilide (#469): there, for «Compañía». With it, the address of its page
+ * of devices (#643), for Enchufes' link. Never fails.
+ */
+export function startBeats(page: () => string | null = () => null) {
 	if (!serverReady) return;
 	const beat = () =>
-		void request('/api/satelite/latido', '{}', 'application/json').catch((err) =>
+		void request(
+			'/api/satelite/latido',
+			JSON.stringify({ alta: page() ?? undefined }),
+			'application/json'
+		).catch((err) =>
 			console.error(`Sin latido: ${err instanceof Error ? err.message : String(err)}`)
 		);
 	beat();

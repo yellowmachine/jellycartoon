@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { PlugOffline, PlugRefused, type SignedOrder } from '#lib/server/plugs/hub.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
+import { satellitePage } from '#lib/server/satellites.ts';
 import {
 	addSchedule,
 	createPlug,
@@ -28,6 +29,7 @@ import {
 	addFoundPlug,
 	enrolDevice,
 	enrolmentOf,
+	forgetDevice,
 	moveToSatellite,
 	satellitesOf,
 	searchPlugs
@@ -35,16 +37,24 @@ import {
 import { isPlugKind, MAX_ON_HOURS, MAX_PLUG_NAME, plugAddress, TIMER_MINUTES } from '#lib/plugs.ts';
 
 /** Enchufes (#396): the family's smart plugs, on and off, and what they use. */
-export const load: PageServerLoad = async ({ locals }) => ({
-	plugs: await listPlugs(locals.user!.id),
-	price: await kwhPrice(locals.user!.id),
-	/** Written by hand: it wins over the bill's. */
-	manual: await manualKwhPrice(locals.user!.id),
-	/** With any, plugs are found and set up by them (#396). */
-	satellites: (await satellitesOf(locals.user!.id)).length,
-	/** «Añade un aparato» said to a satellite (#643): its page, while open. */
-	enrolment: enrolmentOf((await kitchenOf(locals.user!.id)).familyId)
-});
+export const load: PageServerLoad = async ({ locals }) => {
+	const satellites = await satellitesOf(locals.user!.id);
+	return {
+		plugs: await listPlugs(locals.user!.id),
+		price: await kwhPrice(locals.user!.id),
+		/** Written by hand: it wins over the bill's. */
+		manual: await manualKwhPrice(locals.user!.id),
+		/** With any, plugs are found and set up by them (#396). */
+		satellites: satellites.length,
+		/** «Añade un aparato» said to a satellite (#643): its page, while open. */
+		enrolment: enrolmentOf((await kitchenOf(locals.user!.id)).familyId),
+		/** Each satellite's page of devices, as its last beat said: always linked. */
+		pages: satellites.flatMap((s) => {
+			const url = satellitePage(s.id);
+			return url ? [{ satellite: s.name, url }] : [];
+		})
+	};
+};
 
 /** A device's signed order (#643), as its page sent it; null without one. */
 function signedOf(form: FormData): SignedOrder | null {
@@ -157,6 +167,16 @@ export const actions: Actions = {
 	 * the code from the satellite's page. What the satellite answers goes back for the device to
 	 * check.
 	 */
+	/** This device leaves its satellite (#643): its own signed order, carried as it is. */
+	forget: async ({ request, locals }) => {
+		const form = await request.formData();
+		const envelope = String(form.get('envelope') ?? '').slice(0, 2000);
+		const sig = String(form.get('sig') ?? '').slice(0, 200);
+		if (!envelope || !sig) return fail(400, { forgetProblem: 'Falta la firma' });
+		const done = await forgetDevice(locals.user!.id, { envelope, sig });
+		if ('problem' in done) return fail(400, { forgetProblem: done.problem });
+		return { forgotten: true };
+	},
 	enrol: async ({ request, locals }) => {
 		const form = await request.formData();
 		const field = (name: string, max: number) => String(form.get(name) ?? '').slice(0, max);
