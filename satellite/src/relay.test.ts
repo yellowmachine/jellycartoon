@@ -372,6 +372,81 @@ describe('the relay', () => {
 		open.close();
 	});
 
+	test('a signed schedule batch: done here, only switch jobs replaced, their ids to Seilide', async () => {
+		const { d } = await enrolled(trust);
+		const open = startRelay({
+			port: relayPort + 3,
+			upstream: `ws://127.0.0.1:${seilidePort}/api/enchufe/`,
+			key: 'k',
+			trust,
+			log: () => {},
+			fromHome: () => true
+		});
+		const atSeilide = new Promise<WebSocket>((resolve) =>
+			seilide.once('connection', (ws) => ws.once('message', () => resolve(ws)))
+		);
+		const plug = new WebSocket(`ws://127.0.0.1:${relayPort + 3}/enchufe/${'b'.repeat(43)}`);
+		const asked: { method: string; params?: Record<string, unknown> }[] = [];
+		let next = 11;
+		plug.on('message', (m) => {
+			const f = JSON.parse(String(m));
+			asked.push({ method: f.method, params: f.params });
+			const result =
+				f.method === 'Schedule.List'
+					? {
+							jobs: [
+								{ id: 5, calls: [{ method: 'Switch.Set' }] },
+								{ id: 9, calls: [{ method: 'Shelly.Update' }] }
+							]
+						}
+					: f.method === 'Schedule.Create'
+						? { id: next++ }
+						: {};
+			plug.send(JSON.stringify({ id: f.id, src: PLUG, result }));
+		});
+		plug.on('open', () => plug.send(JSON.stringify({ src: PLUG, method: 'NotifyFullStatus' })));
+		const up = await atSeilide;
+		const fromRelay: string[] = [];
+		up.on('message', (m) => fromRelay.push(String(m)));
+		up.send(
+			await signed(d, trust, 'Satelite.Horarios', {
+				jobs: [
+					{ timespec: '0 0 7 * * MON', on: true, enable: true },
+					{ timespec: '0 0 8 * * MON', on: false, enable: true }
+				],
+				replace: [5, 9],
+				off: true
+			})
+		);
+		await new Promise((r) => setTimeout(r, 100));
+		expect(asked.map((a) => a.method)).toEqual([
+			'Switch.Set',
+			'Schedule.List',
+			'Schedule.Delete',
+			'Schedule.Create',
+			'Schedule.Create'
+		]);
+		expect(asked[2]!.params).toEqual({ id: 5 });
+		expect(fromRelay.map((t) => JSON.parse(t))).toEqual([
+			{ id: 7, src: 'satelite', dst: 'seilide', result: { jobs: [11, 12] } }
+		]);
+		expect(trust.jobsOf(PLUG)).toEqual([11, 12]);
+		// A job that does more is never one of its: not accepted signed either.
+		expect(
+			'toSeilide' in
+				decide(
+					await signed(d, trust, 'Satelite.Horarios', {
+						jobs: [{ timespec: '* * * * * *', on: true, enable: true, method: 'Script.Start' }],
+						replace: []
+					}),
+					trust,
+					PLUG
+				)
+		).toBe(true);
+		plug.close();
+		open.close();
+	});
+
 	test('its page, from home only', async () => {
 		const open = startRelay({
 			port: relayPort + 2,

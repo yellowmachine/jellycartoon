@@ -554,14 +554,9 @@ const sameJob = (job: ShellyJob, want: PlugJob) =>
 	job.calls[0]!.method === 'Switch.Set' &&
 	job.calls[0]!.params?.on === want.on;
 
-/**
- * The plug made to match what Seilide keeps of it: its time zone the family's, its schedule jobs
- * (only Seilide's: what the Shelly app put stays), off while paused, and on through a long heat.
- * Not connected, it is done when it connects.
- */
-export async function syncPlug(familyId: string, plugId: string) {
-	if (!hub.connected(plugId)) return;
-	const { row, schedules } = await asFamily(familyId, async (tx) => ({
+/** What Seilide keeps of a plug's schedules: its state, and the schedules. */
+async function planOf(familyId: string, plugId: string) {
+	return asFamily(familyId, async (tx) => ({
 		row: (
 			await tx
 				.select({
@@ -581,6 +576,80 @@ export async function syncPlug(familyId: string, plugId: string) {
 			.where(eq(plugSchedule.plugId, plugId))
 			.orderBy(asc(plugSchedule.id))
 	}));
+}
+
+/** What a device signs for its plug's schedules (#643): its satellite does it in one go. */
+export interface ScheduleTarget {
+	id: string;
+	satellite: string;
+	deviceId: string;
+	params: { jobs: PlugJob[]; replace: number[]; off?: true; onFor?: number };
+}
+
+/**
+ * After a schedule or a pause changed (#643): if the plug goes through a satellite that does not
+ * let Seilide do it alone, what this device is to sign for it to be done now, as syncPlug would. Null
+ * if Seilide does it itself, or there is nothing to sign for (not connected, a sensor).
+ */
+export async function scheduleTarget(familyId: string, plugId: string) {
+	const live = hub.liveOf(plugId);
+	if (!live.online || !live.relayed || live.auto || !live.satellite) return null;
+	const { row, schedules } = await planOf(familyId, plugId);
+	if (!row?.deviceId || isSensorDevice(row.deviceId)) return null;
+	const now = Date.now();
+	const heatLeft = row.heatUntil ? row.heatUntil.getTime() - now : 0;
+	const skipping = Boolean(
+		row.skipFrom && row.skipUntil && row.skipFrom.getTime() <= now && now < row.skipUntil.getTime()
+	);
+	const target: ScheduleTarget = {
+		id: plugId,
+		satellite: live.satellite,
+		deviceId: row.deviceId,
+		params: {
+			jobs: jobsFor(schedules, !row.paused && heatLeft <= 0, skipping),
+			replace: row.scheduleJobs
+		}
+	};
+	if (row.paused) target.params.off = true;
+	else if (heatLeft > 0) target.params.onFor = Math.ceil(heatLeft / 1000);
+	return target;
+}
+
+/**
+ * The schedules a device signed (#643), done by its satellite: the new jobs' ids kept, as
+ * syncPlug keeps them. False if it is not the family's, or not a schedule order of that plug.
+ */
+export async function applySignedSchedules(userId: string, plugId: string, signed: SignedOrder) {
+	const [row] = await withFamily(userId, (tx, { familyId }) =>
+		tx
+			.select({ deviceId: plug.deviceId, familyId: sql<string>`${familyId}` })
+			.from(plug)
+			.where(eq(plug.id, plugId))
+	);
+	if (!row) return false;
+	try {
+		const e = JSON.parse(signed.envelope) as { plug?: unknown; method?: unknown };
+		if (e.plug !== row.deviceId || e.method !== 'Satelite.Horarios') return false;
+	} catch {
+		return false;
+	}
+	const { jobs } = (await hub.callSigned(plugId, signed)) as { jobs?: unknown };
+	const made = Array.isArray(jobs) ? jobs.filter((id): id is number => Number.isInteger(id)) : [];
+	await asFamily(row.familyId, (tx) =>
+		tx.update(plug).set({ scheduleJobs: made }).where(eq(plug.id, plugId))
+	);
+	hub.changed(row.familyId);
+	return true;
+}
+
+/**
+ * The plug made to match what Seilide keeps of it: its time zone the family's, its schedule jobs
+ * (only Seilide's: what the Shelly app put stays), off while paused, and on through a long heat.
+ * Not connected, it is done when it connects.
+ */
+export async function syncPlug(familyId: string, plugId: string) {
+	if (!hub.connected(plugId)) return;
+	const { row, schedules } = await planOf(familyId, plugId);
 	// A sensor (#508) has no switch nor schedules, and is awake only for a moment.
 	if (!row || isSensorDevice(row.deviceId)) return;
 

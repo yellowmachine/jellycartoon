@@ -39,6 +39,8 @@ const {
 	setKwhPrice,
 	setLocked,
 	setPaused,
+	applySignedSchedules,
+	scheduleTarget,
 	signedSwitch,
 	switchPlug,
 	updatePlug
@@ -210,6 +212,21 @@ describe('enchufes', () => {
 		void switchPlug('ana', lampId, false, undefined, signed).catch(() => {});
 		await settle();
 		expect(lampWs.sent.at(-1)).toMatchObject({ method: 'Satelite.Firmada', params: signed });
+	});
+
+	test('signed schedules (#643): nothing to sign when Seilide does it; only a schedule order of that plug', async () => {
+		// Straight to Seilide (not through a satellite): Seilide syncs it itself.
+		expect(await scheduleTarget('A', lampId)).toBeNull();
+		const [lamp] = await listPlugs('ana');
+		const order = (method: string, plug = lamp!.deviceId) => ({
+			envelope: JSON.stringify({ v: 1, plug, method, params: { jobs: [], replace: [] } }),
+			sig: 'x'
+		});
+		expect(await applySignedSchedules('ana', lampId, order('Switch.Set'))).toBe(false);
+		expect(await applySignedSchedules('ana', lampId, order('Satelite.Horarios', 'otro'))).toBe(
+			false
+		);
+		expect(await applySignedSchedules('otra', lampId, order('Satelite.Horarios'))).toBe(false);
 	});
 
 	test('by voice for a while: the plug’s own timer, and when it ends said back', async () => {

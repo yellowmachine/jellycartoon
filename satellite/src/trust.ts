@@ -39,6 +39,8 @@ interface Saved {
 	devices: Device[];
 	/** By the Shelly's id: Seilide may switch it by itself (its schedules, rules, the voice). */
 	auto: Record<string, boolean>;
+	/** By the Shelly's id: the schedule jobs the satellite made on it (Satelite.Horarios). */
+	jobs?: Record<string, number[]>;
 }
 
 /** How long the window that «añade un aparato» opens lasts. */
@@ -103,7 +105,7 @@ export function createTrust(file: string, now: () => number = Date.now) {
 		try {
 			const s = JSON.parse(readFileSync(file, 'utf8')) as Saved;
 			if (s?.key?.pem && s.key.spki && Array.isArray(s.devices))
-				return { key: s.key, devices: s.devices, auto: s.auto ?? {} };
+				return { key: s.key, devices: s.devices, auto: s.auto ?? {}, jobs: s.jobs ?? {} };
 		} catch {
 			// None yet: made now.
 		}
@@ -194,6 +196,10 @@ export function createTrust(file: string, now: () => number = Date.now) {
 		},
 		setAuto(shellyId: string, on: boolean) {
 			save((s) => ({ ...s, auto: { ...s.auto, [shellyId]: on } }));
+		},
+		jobsOf: (shellyId: string) => saved.jobs?.[shellyId] ?? [],
+		setJobs(shellyId: string, ids: number[]) {
+			save((s) => ({ ...s, jobs: { ...s.jobs, [shellyId]: ids } }));
 		},
 		/**
 		 * A signed order for that plug, checked: by a device given here, for this satellite and this

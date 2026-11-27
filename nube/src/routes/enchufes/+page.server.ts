@@ -18,7 +18,9 @@ import {
 	setNotices,
 	setPaused,
 	setSkipIn,
+	applySignedSchedules,
 	permitPlug,
+	scheduleTarget,
 	switchPlug,
 	updatePlug
 } from '#lib/server/plugs/plugs.ts';
@@ -58,6 +60,13 @@ function signedOf(form: FormData): SignedOrder | null {
 		return null;
 	}
 }
+
+/**
+ * After a schedule or a pause changed (#643): what this device is to sign for its satellite to do
+ * it, if Seilide may not do it alone; null, Seilide did it.
+ */
+const signFor = async (userId: string, id: string) =>
+	scheduleTarget((await kitchenOf(userId)).familyId, id);
 
 /** Refused by its satellite (#643): its reason, for the page. */
 const refusedProblem = (e: PlugRefused) => e.message;
@@ -225,16 +234,34 @@ export const actions: Actions = {
 			end: String(form.get('end') ?? '')
 		});
 		if ('problem' in done) return fail(400, { scheduleProblem: id, problem: done.problem });
-		return { scheduled: id };
+		return { scheduled: id, sign: await signFor(locals.user!.id, id) };
 	},
 	unschedule: async ({ request, locals }) => {
 		const form = await request.formData();
-		await deleteSchedule(
-			locals.user!.id,
-			String(form.get('id') ?? ''),
-			Number(form.get('scheduleId'))
-		);
-		return { unscheduled: true };
+		const id = String(form.get('id') ?? '');
+		await deleteSchedule(locals.user!.id, id, Number(form.get('scheduleId')));
+		return { unscheduled: true, sign: await signFor(locals.user!.id, id) };
+	},
+	/** The schedules a device signed (#643), done by its satellite. */
+	applySchedules: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const signed = signedOf(form);
+		if (!signed) return fail(400, { scheduleProblem: id, problem: 'Falta la firma' });
+		try {
+			if (!(await applySignedSchedules(locals.user!.id, id, signed)))
+				return fail(404, { scheduleProblem: id, problem: 'Ese enchufe ya no está' });
+		} catch (e) {
+			if (e instanceof PlugOffline)
+				return fail(409, { scheduleProblem: id, problem: 'El enchufe no está conectado' });
+			if (e instanceof PlugRefused)
+				return fail(403, { scheduleProblem: id, problem: refusedProblem(e) });
+			return fail(500, {
+				scheduleProblem: id,
+				problem: e instanceof Error ? e.message : 'No se pudo'
+			});
+		}
+		return { applied: id };
 	},
 	/** «En pausa», or back: out of a long pause a water heater heats long first. */
 	pause: async ({ request, locals }) => {
@@ -242,13 +269,14 @@ export const actions: Actions = {
 		const id = String(form.get('id') ?? '');
 		const { heats, locked } = await setPaused(locals.user!.id, id, form.get('paused') === 'true');
 		if (locked) return fail(409, { switchProblem: id, problem: LOCKED_PROBLEM });
-		return { pausedId: id, heats };
+		return { pausedId: id, heats, sign: await signFor(locals.user!.id, id) };
 	},
 	/** A skip taken off (#557): its schedules switch it on again from now. */
 	unskip: async ({ request, locals }) => {
 		const id = String((await request.formData()).get('id') ?? '');
 		const { locked } = await setSkipIn(await kitchenOf(locals.user!.id), id, null, null);
 		if (locked) return fail(409, { switchProblem: id, problem: LOCKED_PROBLEM });
+		return { sign: await signFor(locals.user!.id, id) };
 	},
 	/** «Con candado» or without (any adult), against switching it off by a slip. */
 	lock: async ({ request, locals }) => {

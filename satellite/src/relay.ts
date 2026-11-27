@@ -93,6 +93,52 @@ const CHANGE: Record<string, (p: unknown) => boolean> = {
 	'Shelly.Reboot': (p) => p === undefined || (isObject(p) && Object.keys(p).length === 0)
 };
 
+/**
+ * A device's whole schedule for a plug (#643), signed: what Seilide's sync does in several orders,
+ * done here in one. Off now (a pause) or on for a while (the long heat after one), then the jobs
+ * the satellite or Seilide made replaced by these, each only switching it.
+ */
+export interface Schedules {
+	jobs: { timespec: string; on: boolean; enable: boolean }[];
+	/** Seilide's own jobs of before, to be replaced too: only if they only switch it. */
+	replace: number[];
+	off?: boolean;
+	onFor?: number;
+}
+
+/** Shelly keeps up to 20 schedule jobs. */
+const MAX_JOBS = 20;
+
+export function schedulesOf(p: unknown): Schedules | null {
+	if (!isObject(p) || !onlyKeys(p, ['jobs', 'replace', 'off', 'onFor'])) return null;
+	if (!Array.isArray(p.jobs) || p.jobs.length > MAX_JOBS) return null;
+	if (!Array.isArray(p.replace) || p.replace.length > MAX_JOBS) return null;
+	if (!p.replace.every((id) => Number.isInteger(id))) return null;
+	if (p.off !== undefined && typeof p.off !== 'boolean') return null;
+	if (p.onFor !== undefined && !switchSet({ id: SWITCH_ID, on: true, toggle_after: p.onFor }))
+		return null;
+	const jobs = p.jobs.flatMap((j) =>
+		isObject(j) &&
+		onlyKeys(j, ['timespec', 'on', 'enable']) &&
+		typeof j.on === 'boolean' &&
+		typeof j.enable === 'boolean' &&
+		CHANGE['Schedule.Create']!({
+			enable: j.enable,
+			timespec: j.timespec,
+			calls: [{ method: 'Switch.Set', params: { id: SWITCH_ID, on: j.on } }]
+		})
+			? [{ timespec: j.timespec as string, on: j.on, enable: j.enable }]
+			: []
+	);
+	if (jobs.length !== p.jobs.length) return null;
+	return {
+		jobs,
+		replace: p.replace as number[],
+		...(p.off ? { off: true } : {}),
+		...(p.onFor ? { onFor: p.onFor as number } : {})
+	};
+}
+
 /** Mutating orders a plug takes in a minute, at most: more is not a person. */
 const MAX_CHANGES_PER_MIN = 30;
 
@@ -184,6 +230,12 @@ export function decide(text: string, trust: Trust, shellyId: string | null): Dec
 				why: `${signed.device}: Seilide ${auto ? 'puede' : 'ya no puede'} hacerlo solo`
 			};
 		}
+		if (signed.method === 'Satelite.Horarios') {
+			const batch = schedulesOf(signed.params);
+			if (!batch || !shellyId)
+				return { toSeilide: refusal(rpc.id, rpc.src, 'horarios sin sentido'), why: 'horarios' };
+			return { batch, id: rpc.id, src: rpc.src, by: signed.device };
+		}
 		const inner = asRpc({ ...rpc, method: signed.method, params: signed.params });
 		const w = check(inner);
 		if (!w.ok || w.rpc.method.startsWith('Satelite.'))
@@ -252,6 +304,61 @@ export function startRelay({
 		let shellyId: string | null = null;
 		let changes: number[] = [];
 		let alive = true;
+		/** The satellite's own orders to the plug (a schedule batch): their answers stay here. */
+		let ownId = 1_000_000_000;
+		const ownCalls = new Map<number, { ok: (r: unknown) => void; ko: (e: Error) => void }>();
+		const plugCall = (method: string, params?: Record<string, unknown>) =>
+			new Promise<unknown>((ok, ko) => {
+				const id = ownId++;
+				const timer = setTimeout(() => {
+					ownCalls.delete(id);
+					ko(new Error(`${method}: sin respuesta`));
+				}, 5000);
+				ownCalls.set(id, {
+					ok: (r) => (clearTimeout(timer), ok(r)),
+					ko: (e) => (clearTimeout(timer), ko(e))
+				});
+				plug.send(JSON.stringify({ jsonrpc: '2.0', id, src: 'satelite', method, params }));
+			});
+		/** The schedule batch (#643): done in order, its new jobs' ids back to Seilide. */
+		async function runBatch(b: Extract<Decision, { batch: Schedules }>) {
+			const id = shellyId!;
+			try {
+				if (b.batch.off) await plugCall('Switch.Set', { id: SWITCH_ID, on: false });
+				if (b.batch.onFor)
+					await plugCall('Switch.Set', { id: SWITCH_ID, on: true, toggle_after: b.batch.onFor });
+				const { jobs } = (await plugCall('Schedule.List')) as {
+					jobs: { id: number; calls?: { method?: string }[] }[];
+				};
+				const mine = new Set([...trust.jobsOf(id), ...b.batch.replace]);
+				for (const job of jobs ?? [])
+					if (mine.has(job.id) && job.calls?.every((c) => c.method === 'Switch.Set'))
+						await plugCall('Schedule.Delete', { id: job.id });
+				const made: number[] = [];
+				for (const job of b.batch.jobs) {
+					const r = (await plugCall('Schedule.Create', {
+						enable: job.enable,
+						timespec: job.timespec,
+						calls: [{ method: 'Switch.Set', params: { id: SWITCH_ID, on: job.on } }]
+					})) as { id: number };
+					made.push(r.id);
+				}
+				trust.setJobs(id, made);
+				log(`Enchufe ${id}: horarios firmados por ${b.by}`);
+				up.send(answer(b.id, b.src, { jobs: made }));
+			} catch (err) {
+				const why = err instanceof Error ? err.message : String(err);
+				log(`Enchufe ${id}: horarios a medias (${why})`);
+				up.send(
+					JSON.stringify({
+						id: b.id,
+						src: 'satelite',
+						...(b.src ? { dst: b.src } : {}),
+						error: { code: 500, message: `Horarios a medias: ${why}` }
+					})
+				);
+			}
+		}
 		const pinger = setInterval(() => {
 			if (!alive) return plug.terminate();
 			alive = false;
@@ -267,6 +374,24 @@ export function startRelay({
 		plug.on('pong', () => (alive = true));
 		plug.on('message', (data) => {
 			const text = String(data);
+			// An answer to the satellite's own order: not for Seilide.
+			if (ownCalls.size)
+				try {
+					const f = JSON.parse(text) as {
+						id?: number;
+						result?: unknown;
+						error?: { message?: string };
+					};
+					const own = typeof f.id === 'number' ? ownCalls.get(f.id) : undefined;
+					if (own) {
+						ownCalls.delete(f.id!);
+						if (f.error) own.ko(new Error(f.error.message ?? 'error'));
+						else own.ok(f.result);
+						return;
+					}
+				} catch {
+					// Not JSON: on to Seilide, as anything else it says.
+				}
 			if (!shellyId)
 				try {
 					const src = (JSON.parse(text) as { src?: unknown }).src;
@@ -282,6 +407,14 @@ export function startRelay({
 		});
 		up.on('message', (data) => {
 			const decision = decide(String(data), trust, shellyId);
+			if ('batch' in decision) {
+				const at = now();
+				changes = changes.filter((t) => t > at - 60_000);
+				if (changes.length >= MAX_CHANGES_PER_MIN)
+					return up.send(refusal(decision.id, 'seilide', 'demasiadas órdenes en un minuto'));
+				changes.push(at);
+				return void runBatch(decision);
+			}
 			if ('toPlug' in decision) {
 				if (decision.change) {
 					const at = now();

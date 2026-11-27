@@ -125,6 +125,13 @@ una orden firmada. Leer el estado baja siempre. Además, como mucho 30 órdenes 
   `http://<IP-del-satélite>:8790/alta`, se copia el código y se pega en **Enchufes → Este aparato**.
   El código no sale del móvil. A Seilide solo va la clave pública con un HMAC hecho con el código.
   El satélite contesta firmado, y el móvil comprueba esa firma con la huella que va en el código.
+- **Los horarios y la pausa**, sin el permiso: al cambiarlos en Enchufes, Seilide le dice al aparato
+  qué tiene que hacer el enchufe (apagarlo por la pausa o encenderlo durante el calentón, y su lista
+  de horarios). El aparato lo firma (`Satelite.Horarios`) y el satélite lo hace todo seguido: borra
+  los horarios suyos o de Seilide que solo encienden o apagan, y crea los nuevos. Lo que Seilide hace
+  solo a su hora (acabar el calentón, el fin de «que no se encienda esta tarde»), las reglas y la
+  voz siguen necesitando el permiso. Al configurar un enchufe, el satélite le pone también la zona
+  horaria de su `TZ`.
 - **Lo que guarda el satélite** (`/data/seguridad.json`): su propia clave, los aparatos y los
   permisos. La página `/alta` los lista. Quitar un aparato solo se puede con el alta abierta.
 
