@@ -45,11 +45,14 @@ echo "Firmando $REPO@$digest ($version)"
 printf '%s' '{"mediaType":"application/vnd.dev.sigstore.signingconfig.v0.2+json","rekorTlogConfig":{},"tsaConfig":{}}' \
 	> "$pub/sin-registro.json"
 # ghcr's login for pushing the signature, gh's, in a file only for this: not on the command line.
+login=$(gh api user -q .login) && token=$(gh auth token) && [ -n "$login" ] && [ -n "$token" ] ||
+	{ echo "No consigo el login de gh (¿sin conexión con api.github.com?): prueba otra vez"; exit 1; }
 (
 	umask 077
-	auth=$(printf '%s:%s' "$(gh api user -q .login)" "$(gh auth token)" | base64 -w0)
+	auth=$(printf '%s:%s' "$login" "$token" | base64 -w0)
 	printf '{"auths":{"ghcr.io":{"auth":"%s"}}}' "$auth" > "$pub/config.json"
 )
+unset token
 docker run --rm --user "$(id -u)" -e COSIGN_PASSWORD -e DOCKER_CONFIG=/o \
 	-v "$(dirname "$key"):/k:ro" -v "$pub:/o:ro" "$COSIGN" \
 	sign -y --key "/k/$(basename "$key")" --signing-config /o/sin-registro.json \

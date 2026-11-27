@@ -21,7 +21,8 @@ log() { echo "$(date '+%F %T') $*"; }
 
 if [ "${1:-}" = "--instalar" ]; then
 	line="30 4 * * * $PWD/actualizar.sh >> $PWD/actualizar.log 2>&1"
-	(crontab -l 2>/dev/null | grep -vF "$PWD/actualizar.sh"; echo "$line") | crontab -
+	# (No crontab yet, or nothing else in it: grep finds nothing, and that is fine.)
+	({ crontab -l 2>/dev/null || true; } | { grep -vF "$PWD/actualizar.sh" || true; }; echo "$line") | crontab -
 	log "Instalado: cada noche a las 4:30 ($PWD/actualizar.log)"
 fi
 
