@@ -174,7 +174,7 @@
 {/if}
 
 {#if data.satellites && plugs.some((p) => p.relayed)}
-	<AltaAparato {devices} enrolment={data.enrolment} onchange={loadDevices} />
+	<AltaAparato {devices} enrolment={data.enrolment} pages={data.pages} onchange={loadDevices} />
 {/if}
 
 {#if form && 'address' in form && form.address}

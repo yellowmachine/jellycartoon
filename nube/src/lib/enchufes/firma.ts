@@ -151,7 +151,10 @@ export async function acceptEnrolment(
 	return true;
 }
 
-/** Forgotten here: this device no longer signs for that satellite (it stays on its list there). */
+/** This device's own order to leave that satellite's list: for `?/forget`. Null if not given. */
+export const leaveOrder = (satellite: string) => signOrder(satellite, null, 'Satelite.Olvidar');
+
+/** Forgotten here: this device no longer signs for that satellite (`leaveOrder` takes it off there). */
 export async function forget(satellite: string) {
 	const me = await read();
 	if (me) await write({ ...me, satellites: me.satellites.filter((s) => s.fp !== satellite) });
@@ -163,7 +166,8 @@ export async function forget(satellite: string) {
  */
 export async function signOrder(
 	satellite: string,
-	plug: string,
+	/** Null: about the satellite itself (`Satelite.Olvidar`). */
+	plug: string | null,
 	method: string,
 	params?: Record<string, unknown>
 ) {

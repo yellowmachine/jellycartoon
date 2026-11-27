@@ -35,7 +35,7 @@ import { beep, hush, play, speakerName } from './sound.ts';
 import { fallbackFor, greeting, keepFallbacks, sayFallback } from './fallback.ts';
 import { followSnapserver } from './snapclient.ts';
 import { doPlugTask } from './plugs.ts';
-import { altaPage, doEnrolTask, passwordGate } from './alta.ts';
+import { altaPage, doEnrolTask, homeAddress, pageAddress, passwordGate } from './alta.ts';
 import { startRelay } from './relay.ts';
 import { createTrust } from './trust.ts';
 import {
@@ -681,7 +681,10 @@ if (serverReady)
 		doPlugTasks(state.plugTasks ?? []);
 	});
 
-startBeats();
+startBeats(() => {
+	const ip = homeAddress();
+	return ip ? pageAddress(ip) : null;
+});
 
 /** Who may order the plugs (#643): the devices given here, and the plugs Seilide may switch alone. */
 const trust = createTrust(process.env.TRUST_FILE ?? '/data/seguridad.json');
@@ -709,7 +712,9 @@ function doPlugTasks(tasks: PlugTask[]) {
 			log(
 				task.kind === 'abrir-alta'
 					? `Alta de aparatos: ${enrol.problem ?? `abierta en ${enrol.url ?? 'su página'}`}`
-					: `Alta de un aparato: ${enrol.problem ?? 'hecha'}`
+					: task.kind === 'olvidar'
+						? `Un aparato se va: ${enrol.problem ?? 'quitado'}`
+						: `Alta de un aparato: ${enrol.problem ?? 'hecha'}`
 			);
 			void reportPlugTask(enrol).catch(() => {});
 			continue;

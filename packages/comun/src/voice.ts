@@ -40,7 +40,9 @@ export type PlugTask =
 	/** «Añade un aparato» (#643): the satellite's page shows a code for five minutes. */
 	| { id: string; kind: 'abrir-alta' }
 	/** A device given to the satellite with that code: its key, its name, and a MAC made with it. */
-	| { id: string; kind: 'alta'; publicKey: string; name: string; mac: string };
+	| { id: string; kind: 'alta'; publicKey: string; name: string; mac: string }
+	/** A device that leaves (#643): «Satelite.Olvidar», signed by itself; only it can say so. */
+	| { id: string; kind: 'olvidar'; envelope: string; sig: string };
 
 /** A Shelly found in the home's network. */
 export interface FoundPlug {
@@ -70,6 +72,8 @@ export interface PlugTaskResult {
 	until?: number;
 	/** For «alta»: the device's fingerprint, the satellite's key, and its signature of the device. */
 	enrolled?: { fp: string; satellite: string; ack: string };
+	/** For «olvidar»: it is no longer on the satellite's list. */
+	forgotten?: boolean;
 }
 
 /** Voice commands (#33), shared by the server and /voz. */

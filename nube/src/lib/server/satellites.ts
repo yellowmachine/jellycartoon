@@ -23,6 +23,8 @@ export {
 	presenceOf,
 	saidOn,
 	satelliteBeat,
+	satellitePage,
+	satellitePageSaid,
 	satelliteHere,
 	sayOnSatellites,
 	saysFor,

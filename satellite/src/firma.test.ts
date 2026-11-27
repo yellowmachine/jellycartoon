@@ -111,3 +111,34 @@ describe('the device and the satellite, together', () => {
 		expect(await firma.signedSwitch({ ...p, satellite: 'otra' }, true)).toBeNull();
 	});
 });
+
+describe('a device that leaves (Satelite.Olvidar)', () => {
+	test('only by its own signature, with no window open, and only once', async () => {
+		const { doEnrolTask } = await import('./alta.ts');
+		const trust = createTrust(join(mkdtempSync(join(tmpdir(), 'olvidar-')), 'seguridad.json'));
+		const code = trust.code(trust.openEnrolment());
+		const request = (await firma.enrolRequest(code, 'Oficina'))!;
+		const done = trust.enrol(request.publicKey, request.name, request.mac);
+		if (!done.ok) throw new Error(done.why);
+		expect(
+			await firma.acceptEnrolment(request.satellite, done, { satellite: 'D', as: 'Oficina' })
+		).toBe(true);
+		expect(trust.enrolment()).toBeNull();
+
+		const ask = (envelope: string, sig: string) =>
+			doEnrolTask({ id: 't', kind: 'olvidar', envelope, sig }, trust, () => 0)!;
+		const order = (await firma.leaveOrder(trust.fp))!;
+		// Another order, or for a plug, is not a leaving.
+		const other = (await firma.signOrder(trust.fp, null, 'Switch.Set', { id: 0, on: true }))!;
+		expect(ask(other.envelope, other.sig).problem).toBe('no se firma eso');
+		const forPlug = (await firma.signOrder(trust.fp, PLUG, 'Satelite.Olvidar'))!;
+		expect(ask(forPlug.envelope, forPlug.sig).problem).toBe('firmada para otro enchufe');
+		const bad = (order.sig[0] === 'A' ? 'B' : 'A') + order.sig.slice(1);
+		expect(ask(order.envelope, bad).problem).toBe('la firma no vale');
+		expect(trust.devices()).toHaveLength(1);
+
+		expect(ask(order.envelope, order.sig)).toEqual({ id: 't', forgotten: true });
+		expect(trust.devices()).toHaveLength(0);
+		expect(ask(order.envelope, order.sig).problem).toBe('el aparato no está dado de alta');
+	});
+});

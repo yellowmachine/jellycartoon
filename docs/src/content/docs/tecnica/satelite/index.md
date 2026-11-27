@@ -147,7 +147,11 @@ una orden firmada. Leer el estado baja siempre. Además, como mucho 30 órdenes 
   voz siguen necesitando el permiso. Al configurar un enchufe, el satélite le pone también la zona
   horaria de su `TZ`.
 - **Lo que guarda el satélite** (`/data/seguridad.json`): su propia clave, los aparatos y los
-  permisos. La página `/alta` los lista. Quitar un aparato solo se puede con el alta abierta.
+  permisos. La página `/alta` los lista. Desde su página, quitar un aparato solo se puede con el
+  alta abierta. El propio aparato también puede irse, con «Quitar este aparato del satélite» en
+  Enchufes: firma `Satelite.Olvidar` (sin enchufe) y el satélite solo quita al que lo firma.
+- **Cada código, un aparato**: el alta se cierra al usarla, o a los cinco minutos. Para otro, se
+  vuelve a pedir. La página de Enchufes enlaza la del satélite, que manda su dirección con el latido.
 
 Lo que no cubre: el JavaScript de la app lo sirve Seilide. Un Seilide hackeado podría servir uno que
 firme órdenes con la clave del aparato mientras la app está abierta. Por eso los límites los pone

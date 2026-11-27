@@ -200,12 +200,30 @@ export async function enrolDevice(
 	return { problem };
 }
 
+/**
+ * A device that leaves its satellite (#643): «Satelite.Olvidar», signed by itself, to each of the
+ * family's satellites; only the one it is for, and only for that device, takes it.
+ */
+export async function forgetDevice(userId: string, order: { envelope: string; sig: string }) {
+	let problem = 'El satélite no contesta: puede que esté apagado o sin actualizar';
+	for (const satellite of await satellitesOf(userId)) {
+		try {
+			const done = await tasks.ask(satellite.id, { kind: 'olvidar', ...order });
+			if (done.forgotten) return { forgotten: true as const };
+			if (done.problem && done.problem !== 'firmada para otro satélite') problem = done.problem;
+		} catch (e) {
+			if (!(e instanceof SatelliteSilent)) throw e;
+		}
+	}
+	return { problem };
+}
+
 export const deviceEnrolTool: Tool = {
 	type: 'function',
 	function: {
 		name: 'device_enrol',
 		description:
-			'Abre durante cinco minutos el alta de aparatos de este satélite (#643), para que un móvil o una tablet pueda encender y apagar los enchufes con su firma: «añade un aparato», «dar de alta el móvil», «abre el alta». Solo dicho a un satélite.',
+			'Abre el alta de aparatos de este satélite para un solo aparato, como mucho cinco minutos (#643), para que un móvil o una tablet pueda encender y apagar los enchufes con su firma: «añade un aparato», «dar de alta el móvil», «abre el alta». Solo dicho a un satélite. Llámala siempre que lo pidan, aunque ya se abriera antes en esta conversación: cada alta sirve para un solo aparato y se cierra al usarla, así que nunca digas que está abierta sin llamarla.',
 		parameters: { type: 'object', properties: {}, additionalProperties: false }
 	}
 };
@@ -218,7 +236,7 @@ export async function enrolByVoice(
 	const opened = await openEnrolment(familyId, satellite);
 	if ('problem' in opened) return { result: `No se ha abierto: ${opened.problem}.`, done: false };
 	return {
-		result: `Abierto cinco minutos. En el móvil o la tablet, dentro de la wifi de casa, que abra Enchufes en Seilide: ahí está el enlace a la página del satélite${opened.url ? ` (${opened.url})` : ''}, donde copia el código, y luego lo pega en «Dar de alta este aparato». Dilo corto, sin leer la dirección.`,
+		result: `Abierto para un solo aparato, como mucho cinco minutos (para otro, que lo vuelva a pedir). En el móvil o la tablet, dentro de la wifi de casa, que abra Enchufes en Seilide: ahí está el enlace a la página del satélite${opened.url ? ` (${opened.url})` : ''}, donde copia el código, y luego lo pega en «Dar de alta este aparato». Dilo corto, sin leer la dirección.`,
 		done: true
 	};
 }

@@ -15,6 +15,8 @@
 set -euo pipefail
 
 version=${1:?Falta la versión: scripts/firmar-satelite.sh v2.174.0}
+# The image tags go without the «v» of the release.
+version=${version#v}
 key=${COSIGN_KEY:-$HOME/.config/seilide/cosign.key}
 REPO=ghcr.io/yellowmachine/jellycartoon-satellite
 COSIGN=ghcr.io/sigstore/cosign/cosign:v3.1.6@sha256:7d08ec40d6f6fd9ced81a498c367ee6d4dd90d73218f58a791f78661bdbef769
@@ -43,11 +45,14 @@ echo "Firmando $REPO@$digest ($version)"
 printf '%s' '{"mediaType":"application/vnd.dev.sigstore.signingconfig.v0.2+json","rekorTlogConfig":{},"tsaConfig":{}}' \
 	> "$pub/sin-registro.json"
 # ghcr's login for pushing the signature, gh's, in a file only for this: not on the command line.
+login=$(gh api user -q .login) && token=$(gh auth token) && [ -n "$login" ] && [ -n "$token" ] ||
+	{ echo "No consigo el login de gh (¿sin conexión con api.github.com?): prueba otra vez"; exit 1; }
 (
 	umask 077
-	auth=$(printf '%s:%s' "$(gh api user -q .login)" "$(gh auth token)" | base64 -w0)
+	auth=$(printf '%s:%s' "$login" "$token" | base64 -w0)
 	printf '{"auths":{"ghcr.io":{"auth":"%s"}}}' "$auth" > "$pub/config.json"
 )
+unset token
 docker run --rm --user "$(id -u)" -e COSIGN_PASSWORD -e DOCKER_CONFIG=/o \
 	-v "$(dirname "$key"):/k:ro" -v "$pub:/o:ro" "$COSIGN" \
 	sign -y --key "/k/$(basename "$key")" --signing-config /o/sin-registro.json \
