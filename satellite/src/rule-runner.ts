@@ -1,4 +1,6 @@
 import {
+	ASKED_GAP_MIN,
+	ASKED_PER_DAY,
 	guardWhy,
 	type RuleDone,
 	type SatelliteRule
@@ -14,6 +16,12 @@ import type { Rules } from './rules.ts';
  * once, kept across restarts; a time missed by more than LATE_MIN is let go (an errand, told so).
  * What it did, or why not (the plug's padlock, pause, not connected), is told to Seilide, kept until
  * it is.
+ *
+ * Phase 4: a rule `asked` it does not do by itself, only when Seilide asks («Satelite.Cumple»,
+ * `asked`), which knows whether its conditions hold; and then only at its moment as the satellite
+ * sees it: its time (the clock checked), or a cycle of that plug it read itself a few minutes ago;
+ * a moment only Seilide knows, at most ASKED_PER_DAY times a day, ASKED_GAP_MIN apart. Each moment
+ * once. So a Seilide broken into can only choose when, among those, never what nor where.
  */
 
 /** Its moment gone by less than this (a restart, the clock just checked): still done. */
@@ -67,6 +75,8 @@ export function createRunner({
 	timeZone
 }: RunnerOptions) {
 	let sending = false;
+	/** The cycles read lately, by plug: for a rule Seilide asks for at one (phase 4). */
+	const cycles = new Map<string, { moment: 'empieza' | 'termina'; at: number }[]>();
 
 	async function flush() {
 		if (sending) return;
@@ -83,7 +93,8 @@ export function createRunner({
 		}
 	}
 
-	async function run(r: SatelliteRule, key: string) {
+	/** Done now; what went wrong, if anything. Told to Seilide later unless it asked (it hears). */
+	async function run(r: SatelliteRule, key: string, tell = true) {
 		// Kept first: a restart in the middle never does it twice.
 		rules.markDone(r.id, key);
 		const at = now();
@@ -97,15 +108,51 @@ export function createRunner({
 		log(
 			`Regla ${r.id}: ${r.on ? 'enciende' : 'apaga'} ${r.plug}${failed ? `, no ha podido: ${failed}` : ''}`
 		);
-		rules.queue({ id: r.id, key, at, ...(failed ? { failed } : {}) });
-		void flush();
+		if (tell) {
+			rules.queue({ id: r.id, key, at, ...(failed ? { failed } : {}) });
+			void flush();
+		}
+		return failed;
+	}
+
+	/** Which moment of it Seilide's ask is for, now; or why it is not its moment. */
+	function askedKey(r: SatelliteRule): string | { why: string } {
+		const at = now();
+		const w = r.when;
+		if (w.kind === 'enchufe') {
+			const seen = w.plugs
+				.flatMap((p) => cycles.get(p) ?? [])
+				.filter((c) => c.moment === w.moment && c.at >= at - LATE_MIN * 60_000)
+				.sort((a, b) => b.at - a.at)[0];
+			return seen ? `ciclo:${seen.at}` : { why: 'no ha visto ese ciclo' };
+		}
+		if (!clockOk()) return { why: 'no tiene la hora comprobada' };
+		const here = localNow(at, timeZone);
+		if (w.kind === 'seilide') {
+			const today = rules
+				.doneKeys(r.id)
+				.filter((k) => k.startsWith(`pedida:${here.day} `))
+				.map((k) => Number(k.slice(`pedida:${here.day} `.length)));
+			if (today.length >= ASKED_PER_DAY)
+				return { why: `ya la ha cumplido ${today.length} veces hoy` };
+			if (today.some((m) => here.minutes - m < ASKED_GAP_MIN))
+				return { why: `la cumplió hace menos de ${ASKED_GAP_MIN} minutos` };
+			return `pedida:${here.day} ${here.minutes}`;
+		}
+		const day = w.kind === 'cada_dia' ? here.day : w.day;
+		const late = here.minutes - minutesOf(w.time);
+		if (day !== here.day || late < 0 || late > LATE_MIN) return { why: 'no es su hora' };
+		return `${day} ${w.time}`;
 	}
 
 	/** The rules at a time: those whose moment is now, or a few minutes ago. */
 	function tick() {
 		const at = now();
 		const here = localNow(at, timeZone);
-		const timed = rules.rules().filter((r) => r.when.kind !== 'enchufe');
+		// Those Seilide asks for (phase 4): not by itself.
+		const timed = rules
+			.rules()
+			.filter((r) => !r.asked && (r.when.kind === 'cada_dia' || r.when.kind === 'en_fecha'));
 		if (timed.length && !clockOk()) return;
 		for (const r of timed) {
 			const w = r.when as Extract<SatelliteRule['when'], { time: string }>;
@@ -135,13 +182,35 @@ export function createRunner({
 		cycle(shellyId: string, event: CycleEvent) {
 			const moment = event === 'started' ? 'empieza' : 'termina';
 			const at = now();
+			const recent = (cycles.get(shellyId) ?? []).filter((c) => c.at >= at - LATE_MIN * 60_000);
+			cycles.set(shellyId, [...recent, { moment, at }]);
 			for (const r of rules.rules())
 				if (
+					!r.asked &&
 					r.when.kind === 'enchufe' &&
 					r.when.moment === moment &&
 					r.when.plugs.includes(shellyId)
 				)
 					void run(r, `ciclo:${at}`);
+		},
+		/**
+		 * Seilide asks for one of its rules now (phase 4), through that plug's connection: done if it
+		 * is one to be asked for, of that plug, at its moment, and not done already. `ok: false`,
+		 * refused, with why; else done, or what went wrong (its padlock, not connected…).
+		 */
+		async asked(
+			shellyId: string,
+			id: number
+		): Promise<{ ok: false; why: string } | { ok: true; failed?: string }> {
+			const r = rules.rules().find((r) => r.id === id);
+			if (!r?.asked)
+				return { ok: false, why: 'esa regla no está firmada para que la pida Seilide' };
+			if (r.plug !== shellyId) return { ok: false, why: 'esa regla es de otro enchufe' };
+			const key = askedKey(r);
+			if (typeof key !== 'string') return { ok: false, why: key.why };
+			if (rules.isDone(r.id, key)) return { ok: false, why: 'ya la ha cumplido' };
+			const failed = await run(r, key, false);
+			return failed ? { ok: true, failed } : { ok: true };
 		},
 		start() {
 			const timer = setInterval(() => {

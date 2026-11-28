@@ -60,28 +60,43 @@ describe('qué reglas puede hacer un satélite él solo (#651)', () => {
 			plugs: ['shellyplugmg3-2'],
 			moment: 'termina'
 		});
-		// The lamp goes through another satellite: not by itself.
+		// The lamp goes through another satellite: Seilide sees its cycle, and asks (phase 4).
 		const lamp = rule({
 			when: { kind: 'enchufe', words: ['lampara'], minutesBefore: 0, time: null, plug: 'empieza' }
 		});
-		expect(satelliteRuleOf(lamp, plugs, FP)).toBeNull();
+		expect(satelliteRuleOf(lamp, plugs, FP)).toMatchObject({
+			when: { kind: 'seilide' },
+			asked: true
+		});
 	});
 
-	test('lo que no puede mirar él solo, en Seilide', () => {
+	test('lo que solo sabe Seilide: la guarda el satélite, y Seilide se la pide (fase 4)', () => {
 		expect(
 			satelliteRuleOf(
 				rule({ when: { kind: 'tiempo', words: [], minutesBefore: 0, time: null } }),
 				plugs,
 				FP
 			)
-		).toBeNull();
+		).toEqual({
+			id: 7,
+			when: { kind: 'seilide' },
+			plug: 'shellyplugmg3-1',
+			on: false,
+			minutes: null,
+			once: false,
+			asked: true
+		});
+		// With conditions, at its time: asked, only then.
 		expect(
 			satelliteRuleOf(
 				rule({ conditions: [{ kind: 'de_viaje', words: [], negate: false }] }),
 				plugs,
 				FP
 			)
-		).toBeNull();
+		).toMatchObject({ when: { kind: 'cada_dia', time: '22:00' }, asked: true });
+	});
+
+	test('lo que no guarda el satélite', () => {
 		expect(satelliteRuleOf(rule({ then: 'avisar' }), plugs, FP)).toBeNull();
 		expect(
 			satelliteRuleOf(

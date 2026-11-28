@@ -38,6 +38,7 @@ mock.module('#lib/server/plugs/hub.ts', () => ({
 }));
 const pauses: { id: string; paused: boolean }[] = [];
 mock.module('#lib/server/plugs/plugs.ts', () => ({
+	askSatellite: async () => null,
 	HEAT_MS: 4 * 3_600_000,
 	setPausedIn: async (_k: Kitchen, id: string, paused: boolean) => {
 		if (plugAnswer === 'locked') return { heats: false, locked: true };

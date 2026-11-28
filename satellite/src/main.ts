@@ -702,7 +702,10 @@ const relay =
 				key: process.env.SATELLITE_KEY,
 				trust,
 				log,
-				page: altaPage(trust, passwordGate(process.env.ALTA_CLAVE || null))
+				page: altaPage(trust, passwordGate(process.env.ALTA_CLAVE || null)),
+				// Called once a plug is here, after plugRules below exists.
+				guardOf: (id) => plugRules.guard(id),
+				clockOk: () => clockOk()
 			})
 		: null;
 
@@ -726,6 +729,7 @@ const runner = createRunner({
 });
 if (relay) {
 	relay.onCycle((id, event) => runner.cycle(id, event));
+	relay.onAsked((id, rule) => runner.asked(id, rule));
 	runner.start();
 }
 

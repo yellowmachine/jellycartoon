@@ -28,6 +28,7 @@ mock.module('#lib/server/plugs/hub.ts', () => ({
 	PlugRefused: class extends Error {}
 }));
 mock.module('#lib/server/plugs/plugs.ts', () => ({
+	askSatellite: async () => null,
 	HEAT_MS: 0,
 	setPausedIn: async () => ({ heats: false }),
 	plugsOf: async () => [],

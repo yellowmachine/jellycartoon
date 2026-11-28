@@ -3,6 +3,13 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { isHomeIp, RELAY_PATH, RELAY_PORT } from './plugs.ts';
 import type { Trust } from './trust.ts';
 import { PlugWatch, switchReading, type CycleEvent } from '../../packages/comun/src/plug-watch.ts';
+import {
+	planJobs,
+	validPlan,
+	type PlanJob,
+	type PlugGuard,
+	type PlugPlan
+} from '../../packages/comun/src/plug-rules.ts';
 
 /**
  * The plugs through the satellite (#643, phase 1): each Shelly's outbound WebSocket points here, in
@@ -112,13 +119,19 @@ export interface Schedules {
 	replace: number[];
 	off?: boolean;
 	onFor?: number;
+	/**
+	 * Its plan (#651, phase 5): then `jobs` are those of a normal day, and the satellite makes them
+	 * as the plan says now, and again as each of its whiles ends (the heat, «esta tarde no»).
+	 */
+	plan?: PlugPlan;
 }
 
 /** Shelly keeps up to 20 schedule jobs. */
 const MAX_JOBS = 20;
 
-export function schedulesOf(p: unknown): Schedules | null {
-	if (!isObject(p) || !onlyKeys(p, ['jobs', 'replace', 'off', 'onFor'])) return null;
+export function schedulesOf(p: unknown, now = Date.now()): Schedules | null {
+	if (!isObject(p) || !onlyKeys(p, ['jobs', 'replace', 'off', 'onFor', 'plan'])) return null;
+	if (p.plan !== undefined && !validPlan(p.plan, now)) return null;
 	if (!Array.isArray(p.jobs) || p.jobs.length > MAX_JOBS) return null;
 	if (!Array.isArray(p.replace) || p.replace.length > MAX_JOBS) return null;
 	if (!p.replace.every((id) => Number.isInteger(id))) return null;
@@ -143,7 +156,8 @@ export function schedulesOf(p: unknown): Schedules | null {
 		jobs,
 		replace: p.replace as number[],
 		...(p.off ? { off: true } : {}),
-		...(p.onFor ? { onFor: p.onFor as number } : {})
+		...(p.onFor ? { onFor: p.onFor as number } : {}),
+		...(p.plan ? { plan: p.plan as PlugPlan } : {})
 	};
 }
 
@@ -174,7 +188,7 @@ export function check(text: string): Verdict {
 		return { ok: false, id, src, why: `${method} con algo de más` };
 	const rpc = { id, src, method, params: frame.params };
 	if (READ.has(method)) return { ok: true, kind: 'read', rpc };
-	if (method === 'Satelite.Estado' || method === 'Satelite.Firmada')
+	if (method === 'Satelite.Estado' || method === 'Satelite.Firmada' || method === 'Satelite.Cumple')
 		return { ok: true, kind: 'read', rpc };
 	const allowed = CHANGE[method];
 	if (!allowed) return { ok: false, id, src, why: `${method} no está permitido` };
@@ -205,7 +219,9 @@ const asRpc = (r: Rpc) =>
 
 /** What to do with a frame from Seilide: send it on to the plug, or answer Seilide. */
 export type Decision =
-	{ toPlug: string; change: boolean; by?: string } | { toSeilide: string | null; why?: string };
+	| { toPlug: string; change: boolean; by?: string }
+	| { toSeilide: string | null; why?: string }
+	| { asked: number; id: number; src: string | null };
 
 /**
  * A frame from Seilide for the plug `shellyId` (null until it has said who it is): read freely;
@@ -222,6 +238,13 @@ export function decide(text: string, trust: Trust, shellyId: string | null): Dec
 				auto: shellyId ? trust.auto(shellyId) : false
 			})
 		};
+	// One of its rules, now (#651, phase 4): the satellite's rules say whether it may.
+	if (rpc.method === 'Satelite.Cumple') {
+		const p = rpc.params;
+		if (!isObject(p) || !onlyKeys(p, ['rule']) || !Number.isSafeInteger(p.rule) || !shellyId)
+			return { toSeilide: refusal(rpc.id, rpc.src, 'regla sin sentido'), why: 'regla' };
+		return { asked: p.rule as number, id: rpc.id, src: rpc.src };
+	}
 	if (rpc.method === 'Satelite.Firmada') {
 		const p = rpc.params;
 		if (!isObject(p) || typeof p.envelope !== 'string' || typeof p.sig !== 'string')
@@ -276,10 +299,21 @@ export interface RelayOptions {
 	 * by its Shelly id, for the rules the satellite keeps.
 	 */
 	onCycle?: (shellyId: string, event: CycleEvent) => void;
+	/** Seilide asks for one of the satellite's rules now (#651, phase 4): done, or why not. */
+	onAsked?: AskedListener;
+	/** What Seilide said unsigned stops each plug (#651, phases 3 and 5): a pause, a skip. */
+	guardOf?: (shellyId: string) => PlugGuard | undefined;
+	/** Its clock checked (#651): a plan's whiles end by it. */
+	clockOk?: () => boolean;
 	/** Seilide's side dropped: first tried again this long after (a test, sooner). */
 	upRetryMs?: number;
 	now?: () => number;
 }
+
+export type AskedListener = (
+	shellyId: string,
+	rule: number
+) => Promise<{ ok: false; why: string } | { ok: true; failed?: string }>;
 
 /** The plugs' WebSocket, and the satellite's pages, here; closed with `close()`. */
 export function startRelay({
@@ -291,6 +325,9 @@ export function startRelay({
 	fromHome = isHomeIp,
 	page,
 	onCycle,
+	onAsked,
+	guardOf = () => undefined,
+	clockOk = () => true,
 	upRetryMs = UP_RETRY_MS,
 	now = Date.now
 }: RelayOptions) {
@@ -300,6 +337,7 @@ export function startRelay({
 	 */
 	const watches = new Map<string, PlugWatch>();
 	let cycleListener = onCycle;
+	let askedListener = onAsked;
 	/** The plugs that have come through here since it started, by their Shelly id (#651). */
 	const seenPlugs = new Set<string>();
 	/**
@@ -312,6 +350,8 @@ export function startRelay({
 			plug: WebSocket;
 			call: (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 			change: () => boolean;
+			/** Its jobs as its plan says now, if they changed (#651, phase 5). */
+			plan: () => void;
 		}
 	>();
 	const cycleOf = (shellyId: string, events: string[]) => {
@@ -323,6 +363,7 @@ export function startRelay({
 	};
 	const ticker = setInterval(() => {
 		for (const [id, w] of watches) cycleOf(id, w.tick(now()));
+		for (const c of live.values()) c.plan();
 	}, WATCH_TICK_MS);
 	ticker.unref?.();
 	const watchOf = (shellyId: string) => {
@@ -394,6 +435,51 @@ export function startRelay({
 				});
 				plug.send(JSON.stringify({ jsonrpc: '2.0', id, src: 'satelite', method, params }));
 			});
+		/** Its jobs replaced: those the satellite made (and `replace`), if they only switch it. */
+		async function writeJobs(id: string, want: PlanJob[], replace: number[] = []) {
+			const { jobs } = (await plugCall('Schedule.List')) as {
+				jobs: { id: number; calls?: { method?: string }[] }[];
+			};
+			const mine = new Set([...trust.jobsOf(id), ...replace]);
+			for (const job of jobs ?? [])
+				if (mine.has(job.id) && job.calls?.every((c) => c.method === 'Switch.Set'))
+					await plugCall('Schedule.Delete', { id: job.id });
+			const made: number[] = [];
+			for (const job of want) {
+				const r = (await plugCall('Schedule.Create', {
+					enable: job.enable,
+					timespec: job.timespec,
+					calls: [{ method: 'Switch.Set', params: { id: SWITCH_ID, on: job.on } }]
+				})) as { id: number };
+				made.push(r.id);
+			}
+			trust.setJobs(id, made);
+			return made;
+		}
+		/**
+		 * Its plan (#651, phase 5): which of its jobs run, as now. Written only when that changed: a
+		 * heat or a skip that ended, a pause said. Not without its clock checked, nor twice at once.
+		 */
+		let planned: string | null = null;
+		let planning = false;
+		async function followPlan() {
+			const id = shellyId;
+			const kept = id ? trust.planOf(id) : null;
+			if (!id || !kept || planning || !clockOk() || plug.readyState !== WebSocket.OPEN) return;
+			const want = planJobs(kept.base, kept.plan, guardOf(id), now());
+			const key = JSON.stringify(want);
+			if (key === planned) return;
+			planning = true;
+			try {
+				await writeJobs(id, want);
+				planned = key;
+				log(`Enchufe ${id}: horarios como dice su plan`);
+			} catch (err) {
+				log(`Enchufe ${id}: horarios sin poner (${err instanceof Error ? err.message : err})`);
+			} finally {
+				planning = false;
+			}
+		}
 		/** The schedule batch (#643): done in order, its new jobs' ids back to Seilide. */
 		async function runBatch(b: Extract<Decision, { batch: Schedules }>) {
 			const id = shellyId!;
@@ -401,23 +487,12 @@ export function startRelay({
 				if (b.batch.off) await plugCall('Switch.Set', { id: SWITCH_ID, on: false });
 				if (b.batch.onFor)
 					await plugCall('Switch.Set', { id: SWITCH_ID, on: true, toggle_after: b.batch.onFor });
-				const { jobs } = (await plugCall('Schedule.List')) as {
-					jobs: { id: number; calls?: { method?: string }[] }[];
-				};
-				const mine = new Set([...trust.jobsOf(id), ...b.batch.replace]);
-				for (const job of jobs ?? [])
-					if (mine.has(job.id) && job.calls?.every((c) => c.method === 'Switch.Set'))
-						await plugCall('Schedule.Delete', { id: job.id });
-				const made: number[] = [];
-				for (const job of b.batch.jobs) {
-					const r = (await plugCall('Schedule.Create', {
-						enable: job.enable,
-						timespec: job.timespec,
-						calls: [{ method: 'Switch.Set', params: { id: SWITCH_ID, on: job.on } }]
-					})) as { id: number };
-					made.push(r.id);
-				}
-				trust.setJobs(id, made);
+				const plan = b.batch.plan;
+				trust.setPlan(id, plan ? { base: b.batch.jobs, plan } : null);
+				const want = plan ? planJobs(b.batch.jobs, plan, guardOf(id), now()) : b.batch.jobs;
+				planning = true;
+				const made = await writeJobs(id, want, b.batch.replace).finally(() => (planning = false));
+				planned = JSON.stringify(want);
 				log(`Enchufe ${id}: horarios firmados por ${b.by}`);
 				toSeilide(answer(b.id, b.src, { jobs: made }));
 			} catch (err) {
@@ -480,7 +555,9 @@ export function startRelay({
 					if (typeof src === 'string' && /^shelly[\w-]{1,80}$/i.test(src)) {
 						shellyId = src;
 						seenPlugs.add(src);
-						live.set(src, { plug, call: plugCall, change });
+						live.set(src, { plug, call: plugCall, change, plan: () => void followPlan() });
+						// Back (a restart, a power cut): its jobs as its plan says now.
+						setTimeout(() => void followPlan(), 1000).unref?.();
 					}
 				} catch {
 					// Not JSON: passed on as it is; Seilide does not understand it either.
@@ -494,6 +571,23 @@ export function startRelay({
 		});
 		const fromSeilide = (data: unknown) => {
 			const decision = decide(String(data), trust, shellyId);
+			if ('asked' in decision) {
+				const { asked, id, src } = decision;
+				if (!askedListener) return toSeilide(refusal(id, src, 'aún no tiene reglas'));
+				return void askedListener(shellyId!, asked)
+					.then((r) => {
+						if (!r.ok) {
+							log(`Enchufe ${shellyId}: Seilide pide la regla ${asked}, no: ${r.why}`);
+							return toSeilide(refusal(id, src, r.why));
+						}
+						toSeilide(
+							answer(id, src, r.failed ? { done: false, failed: r.failed } : { done: true })
+						);
+					})
+					.catch((err) =>
+						toSeilide(refusal(id, src, err instanceof Error ? err.message : String(err)))
+					);
+			}
 			if ('batch' in decision) {
 				const at = now();
 				changes = changes.filter((t) => t > at - 60_000);
@@ -513,6 +607,12 @@ export function startRelay({
 					}
 					changes.push(at);
 					if (decision.by) log(`Enchufe ${shellyId ?? from}: orden firmada por ${decision.by}`);
+					// Seilide writes its schedules itself (with the permission): no plan of before here.
+					const method = (JSON.parse(decision.toPlug) as { method: string }).method;
+					if (shellyId && method.startsWith('Schedule.') && trust.planOf(shellyId)) {
+						trust.setPlan(shellyId, null);
+						planned = null;
+					}
 				}
 				return plug.send(decision.toPlug);
 			}
@@ -569,6 +669,14 @@ export function startRelay({
 		/** Who hears its plugs' cycles (#651: the rules), once it exists. */
 		onCycle(fn: (shellyId: string, event: CycleEvent) => void) {
 			cycleListener = fn;
+		},
+		/** Each plug's jobs as its plan says now (#651, phase 5): what its ticker does. */
+		followPlans() {
+			for (const c of live.values()) c.plan();
+		},
+		/** Who does the rules Seilide asks for (#651, phase 4). */
+		onAsked(fn: AskedListener) {
+			askedListener = fn;
 		},
 		/** Whether that plug has come through here (#651: its rules said by voice). */
 		hasPlug: (shellyId: string) => seenPlugs.has(shellyId),

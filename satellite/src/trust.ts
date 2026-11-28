@@ -12,6 +12,7 @@ import {
 } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import type { PlanJob, PlugPlan } from '../../packages/comun/src/plug-rules.ts';
 
 /**
  * Who may order the plugs (#643, phase 2): the devices given here, each with its own key, and
@@ -41,6 +42,14 @@ interface Saved {
 	auto: Record<string, boolean>;
 	/** By the Shelly's id: the schedule jobs the satellite made on it (Satelite.Horarios). */
 	jobs?: Record<string, number[]>;
+	/** By the Shelly's id: its schedules' signed plan (#651, phase 5), to put back as it ends. */
+	plans?: Record<string, KeptPlan>;
+}
+
+/** Its jobs on a normal day, and what changes them for a while (comun/plug-rules.ts). */
+export interface KeptPlan {
+	base: PlanJob[];
+	plan: PlugPlan;
 }
 
 /** How long the window that «añade un aparato» opens lasts. */
@@ -107,7 +116,13 @@ export function createTrust(file: string, now: () => number = Date.now) {
 		try {
 			const s = JSON.parse(readFileSync(file, 'utf8')) as Saved;
 			if (s?.key?.pem && s.key.spki && Array.isArray(s.devices))
-				return { key: s.key, devices: s.devices, auto: s.auto ?? {}, jobs: s.jobs ?? {} };
+				return {
+					key: s.key,
+					devices: s.devices,
+					auto: s.auto ?? {},
+					jobs: s.jobs ?? {},
+					plans: s.plans ?? {}
+				};
 		} catch {
 			// None yet: made now.
 		}
@@ -206,6 +221,16 @@ export function createTrust(file: string, now: () => number = Date.now) {
 		jobsOf: (shellyId: string) => saved.jobs?.[shellyId] ?? [],
 		setJobs(shellyId: string, ids: number[]) {
 			save((s) => ({ ...s, jobs: { ...s.jobs, [shellyId]: ids } }));
+		},
+		planOf: (shellyId: string): KeptPlan | null => saved.plans?.[shellyId] ?? null,
+		/** Its signed plan (#651, phase 5); null, none (signed without one: as it was signed). */
+		setPlan(shellyId: string, kept: KeptPlan | null) {
+			save((s) => {
+				const plans = { ...s.plans };
+				if (kept) plans[shellyId] = kept;
+				else delete plans[shellyId];
+				return { ...s, plans };
+			});
 		},
 		/**
 		 * A signed order for that plug, checked: by a device given here, for this satellite and this

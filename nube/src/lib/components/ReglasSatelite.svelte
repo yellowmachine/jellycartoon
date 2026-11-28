@@ -15,6 +15,7 @@
 		name: string;
 		fp: string;
 		count: number;
+		asked: number;
 		kept: boolean;
 		toSign: { version: number; rules: SatelliteRule[] } | null;
 	};
@@ -57,9 +58,11 @@
 	<section class={section}>
 		<h2 class="mb-1 font-semibold">Reglas en los satélites</h2>
 		<p class="mb-3 text-sm text-zinc-400">
-			Las reglas que encienden o apagan un enchufe a una hora, o cuando otro acaba, las guarda el
-			satélite por el que pasa, para hacerlas también sin internet. Las firma un aparato dado de
-			alta en él; las que le dices al propio satélite no hace falta firmarlas.
+			Las reglas que encienden o apagan un enchufe las guarda el satélite por el que pasa. Las de
+			una hora, o de cuando otro enchufe acaba, las hace él solo, también sin internet. Las que
+			dependen de algo que sabe Seilide (el tiempo, si llegas a casa…) las hace cuando Seilide se lo
+			pide, y solo lo que firmaste. Las firma un aparato dado de alta en él; las que le dices al
+			propio satélite no hace falta firmarlas.
 		</p>
 		<ul class="divide-y divide-zinc-800 text-sm">
 			{#each states as s (s.id)}
@@ -68,6 +71,11 @@
 						{s.name}
 						<span class="block text-xs text-zinc-500">
 							{s.count === 1 ? '1 regla' : `${s.count} reglas`}
+							{#if s.asked}({s.asked === s.count
+									? s.asked === 1
+										? 'la pide Seilide'
+										: 'todas las pide Seilide'
+									: `${s.asked} las pide Seilide`}){/if}
 							{#if s.toSign}· cambiadas, sin firmar{:else if s.kept}· las tiene ✓{:else}· aún no las
 								ha tomado{/if}
 						</span>

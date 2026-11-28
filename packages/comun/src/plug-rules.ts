@@ -14,12 +14,22 @@ export const MAX_PLUG_MIN = 4 * 60;
 export const MAX_SATELLITE_RULES = 100;
 /** A rule said to the satellite is taken unsigned only this long after it heard an order. */
 export const VOICE_RULES_MS = 2 * 60_000;
+/**
+ * A rule whose moment only Seilide knows (#651, phase 4: the weather, arriving home…): done when
+ * Seilide asks, at most this many times a day, and at least this long apart.
+ */
+export const ASKED_PER_DAY = 4;
+export const ASKED_GAP_MIN = 30;
 
-/** When: every day at a time, one day at a time, or a plug's cycle that starts or ends. */
+/**
+ * When: every day at a time, one day at a time, or a plug's cycle that starts or ends; or (#651,
+ * phase 4) a moment only Seilide knows (`seilide`, always `asked`).
+ */
 export type SatelliteWhen =
 	| { kind: 'cada_dia'; time: string }
 	| { kind: 'en_fecha'; day: string; time: string }
-	| { kind: 'enchufe'; plugs: string[]; moment: 'empieza' | 'termina' };
+	| { kind: 'enchufe'; plugs: string[]; moment: 'empieza' | 'termina' }
+	| { kind: 'seilide' };
 
 export interface SatelliteRule {
 	/** Its id in Seilide: what it did is told back by it. */
@@ -31,6 +41,13 @@ export interface SatelliteRule {
 	minutes: number | null;
 	/** Done once, and then not again (an errand). */
 	once: boolean;
+	/**
+	 * Done only when Seilide asks (#651, phase 4: «cumple la regla N»), because only Seilide knows
+	 * whether its conditions hold, or its moment: and then only at its moment as the satellite sees
+	 * it (its time, a cycle it read itself), or, for a moment only Seilide knows, a few times a day.
+	 * What it does, on which plug and for how long, is still what was signed.
+	 */
+	asked?: true;
 }
 
 /** The list, as signed: for which satellite (its fingerprint), and its version, which only goes up. */
@@ -71,6 +88,7 @@ function validWhen(w: unknown): w is SatelliteWhen {
 			w.plugs.length <= 20 &&
 			w.plugs.every(isShellyId)
 		);
+	if (w.kind === 'seilide') return onlyKeys(w, ['kind']);
 	return false;
 }
 
@@ -78,7 +96,10 @@ function validWhen(w: unknown): w is SatelliteWhen {
 export function validRule(r: unknown): r is SatelliteRule {
 	return (
 		isObject(r) &&
-		onlyKeys(r, ['id', 'when', 'plug', 'on', 'minutes', 'once']) &&
+		onlyKeys(r, ['id', 'when', 'plug', 'on', 'minutes', 'once', 'asked']) &&
+		(r.asked === undefined || r.asked === true) &&
+		// A moment only Seilide knows: only when it asks.
+		(r.asked === true || (isObject(r.when) && r.when.kind !== 'seilide')) &&
 		Number.isSafeInteger(r.id) &&
 		(r.id as number) > 0 &&
 		validWhen(r.when) &&
@@ -116,8 +137,19 @@ export function canonical(r: SatelliteRule): SatelliteRule {
 			? { kind: 'cada_dia', time: r.when.time }
 			: r.when.kind === 'en_fecha'
 				? { kind: 'en_fecha', day: r.when.day, time: r.when.time }
-				: { kind: 'enchufe', plugs: [...r.when.plugs].sort(), moment: r.when.moment };
-	return { id: r.id, when, plug: r.plug, on: r.on, minutes: r.minutes, once: r.once };
+				: r.when.kind === 'enchufe'
+					? { kind: 'enchufe', plugs: [...r.when.plugs].sort(), moment: r.when.moment }
+					: { kind: 'seilide' };
+	return {
+		id: r.id,
+		when,
+		plug: r.plug,
+		on: r.on,
+		minutes: r.minutes,
+		once: r.once,
+		// Only when so: a list signed before it means the same.
+		...(r.asked ? { asked: true as const } : {})
+	};
 }
 
 /** The list sorted by id, each rule canonical: what is compared, and what is signed. */
@@ -160,6 +192,13 @@ export interface PlugGuard {
 	paused: boolean;
 	/** Its long heat goes on until then, in ms; null, none. */
 	heatUntil: number | null;
+	/**
+	 * «Esta tarde no» (#557), from and until, in ms (#651, phase 5): its schedules do not switch it
+	 * on then. Unsigned, as the pause: on the plug's own schedules it only keeps them from switching
+	 * it on (`planJobs`).
+	 */
+	skipFrom?: number | null;
+	skipUntil?: number | null;
 }
 
 export function validGuards(v: unknown): v is Record<string, PlugGuard> {
@@ -194,4 +233,67 @@ export interface RuleDone {
 	failed?: string;
 	/** Its moment went by without the satellite doing it (a restart, no clock). */
 	missed?: boolean;
+}
+
+/**
+ * A plug's schedules as signed (#651, phase 5: `Satelite.Horarios` with a `plan`): its jobs as they
+ * are on a normal day, and what changes them for a while, with its end: paused, its long heat
+ * (none of its jobs until then), «esta tarde no» (not its «on» ones then). The satellite keeps it
+ * and puts them back itself when each ends, also without the internet.
+ */
+export interface PlugPlan {
+	paused: boolean;
+	heatUntil: number | null;
+	skipFrom: number | null;
+	skipUntil: number | null;
+}
+
+export interface PlanJob {
+	timespec: string;
+	on: boolean;
+	enable: boolean;
+}
+
+/** A heat is a few hours, a skip a couple of weeks: further, it is not a plan. */
+const MAX_HEAT_MS = 86_400_000;
+const MAX_SKIP_MS = 15 * 86_400_000;
+
+const msOrNull = (v: unknown) => v === null || (typeof v === 'number' && Number.isFinite(v));
+
+/** A plan as it has to be, by the satellite's clock now. */
+export function validPlan(v: unknown, now: number): v is PlugPlan {
+	if (!isObject(v) || !onlyKeys(v, ['paused', 'heatUntil', 'skipFrom', 'skipUntil'])) return false;
+	if (typeof v.paused !== 'boolean') return false;
+	if (!msOrNull(v.heatUntil) || !msOrNull(v.skipFrom) || !msOrNull(v.skipUntil)) return false;
+	if (v.heatUntil !== null && (v.heatUntil as number) > now + MAX_HEAT_MS) return false;
+	if ((v.skipFrom === null) !== (v.skipUntil === null)) return false;
+	if (
+		v.skipFrom !== null &&
+		((v.skipUntil as number) <= (v.skipFrom as number) ||
+			(v.skipUntil as number) > now + MAX_SKIP_MS)
+	)
+		return false;
+	return true;
+}
+
+const inside = (from: number | null | undefined, until: number | null | undefined, now: number) =>
+	from != null && until != null && from <= now && now < until;
+
+/**
+ * Its jobs now, as Seilide's jobsFor: none while paused or heating, not the «on» ones in a skip.
+ * What Seilide says unsigned (`guard`: a pause, a skip said to it) only keeps the «on» ones off:
+ * never switching it, nor leaving it on.
+ */
+export function planJobs(
+	base: PlanJob[],
+	plan: PlugPlan,
+	guard: PlugGuard | undefined,
+	now: number
+): PlanJob[] {
+	const enable = !plan.paused && !(plan.heatUntil !== null && plan.heatUntil > now);
+	const noOn =
+		inside(plan.skipFrom, plan.skipUntil, now) ||
+		guard?.paused === true ||
+		inside(guard?.skipFrom, guard?.skipUntil, now);
+	return base.map((j) => ({ ...j, enable: j.enable && enable && !(j.on && noOn) }));
 }

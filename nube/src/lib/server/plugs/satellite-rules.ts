@@ -82,6 +82,8 @@ export async function satelliteRulesState(k: Kitchen) {
 			name: s.name,
 			fp: s.trustFp!,
 			count: rules.length,
+			/** Of them, those Seilide asks for (#651, phase 4): conditions, or a moment only it knows. */
+			asked: rules.filter((r) => r.asked).length,
 			/** It keeps what it was offered last. */
 			kept: same && s.plugRulesKept >= offered!.version,
 			/** None to sign: the same as offered (it may not have taken them yet: it is told again). */
@@ -205,7 +207,9 @@ export async function guardsFor(k: Kitchen, satelliteId: string) {
 				deviceId: plug.deviceId,
 				locked: plug.locked,
 				paused: plug.paused,
-				heatUntil: plug.heatUntil
+				heatUntil: plug.heatUntil,
+				skipFrom: plug.skipFrom,
+				skipUntil: plug.skipUntil
 			})
 			.from(plug)
 			.where(and(eq(plug.familyId, k.familyId), eq(plug.satelliteFp, fp)))
@@ -216,7 +220,11 @@ export async function guardsFor(k: Kitchen, satelliteId: string) {
 			guards[r.deviceId] = {
 				locked: r.locked,
 				paused: r.paused,
-				heatUntil: r.heatUntil ? r.heatUntil.getTime() : null
+				heatUntil: r.heatUntil ? r.heatUntil.getTime() : null,
+				// «Esta tarde no» (#651, phase 5): its schedules do not switch it on then.
+				...(r.skipFrom && r.skipUntil && r.skipUntil > new Date()
+					? { skipFrom: r.skipFrom.getTime(), skipUntil: r.skipUntil.getTime() }
+					: {})
 			};
 	return guards;
 }
