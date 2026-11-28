@@ -26,6 +26,7 @@ const kitchen = (familyId: string, userId: string | null): Kitchen => ({
 });
 
 class PlugOffline extends Error {}
+class PlugRefused extends Error {}
 const switched: { id: string; on: boolean; backAfterS?: number }[] = [];
 let plugAnswer: 'ok' | 'locked' | 'offline' = 'ok';
 const told: { to: string[]; title: string; body: string; url: string }[] = [];
@@ -33,10 +34,18 @@ const memories: string[] = [];
 
 mock.module('#lib/server/plugs/hub.ts', () => ({
 	PlugOffline,
-	PlugRefused: class extends Error {}
+	PlugRefused
 }));
 const pauses: { id: string; paused: boolean }[] = [];
+/** «Cumple la regla N» (#651, phase 4): what the satellite was asked, and what it says. */
+const asked: { id: string; rule: number }[] = [];
+let satelliteSays: string | null | 'refused' = null;
 mock.module('#lib/server/plugs/plugs.ts', () => ({
+	askSatellite: async (_k: Kitchen, id: string, rule: number) => {
+		asked.push({ id, rule });
+		if (satelliteSays === 'refused') throw new PlugRefused('El satélite no lo deja: no es su hora');
+		return satelliteSays;
+	},
 	HEAT_MS: 4 * 3_600_000,
 	setPausedIn: async (_k: Kitchen, id: string, paused: boolean) => {
 		if (plugAnswer === 'locked') return { heats: false, locked: true };
@@ -136,7 +145,7 @@ const fromNow = (minutes: number) => momentOf(minutesOf(localDay(), localTime())
 const ruleRow = async (id: number) => (await db.select().from(rule).where(eq(rule.id, id)))[0]!;
 
 /** The satellite, offered that rule; `kept`, the version it says it keeps. */
-async function satelliteWith(id: number, kept: number) {
+async function satelliteWith(id: number, kept: number, ask = false) {
 	await db.insert(voiceSatellite).values({
 		id: 'sat',
 		familyId: 'A',
@@ -153,7 +162,8 @@ async function satelliteWith(id: number, kept: number) {
 					plug: 'shellyplugmg3-1',
 					on: true,
 					minutes: 60,
-					once: true
+					once: true,
+					...(ask ? { asked: true as const } : {})
 				}
 			]
 		},
@@ -184,6 +194,8 @@ beforeEach(async () => {
 	told.length = 0;
 	kept.length = 0;
 	plugAnswer = 'ok';
+	asked.length = 0;
+	satelliteSays = null;
 	await db.delete(rule);
 	await db.delete(voiceSatellite);
 });
@@ -244,4 +256,30 @@ test('it could not: told if recent; told late (it was offline), only kept', asyn
 	});
 	expect(told).toHaveLength(1);
 	expect((await ruleRow(id)).lastWhy).toContain('no está conectado');
+});
+
+test('asked for (phase 4): Seilide looks at it and asks its satellite, which does what was signed', async () => {
+	const [{ id }] = await db
+		.insert(rule)
+		.values(errand(fromNow(-1)))
+		.returning({ id: rule.id });
+	await satelliteWith(id, 3, true);
+	await checkTimedRules('A');
+	expect(asked).toEqual([{ id: 'p1', rule: id }]);
+	expect(switched).toEqual([]);
+	expect(kept).toHaveLength(1);
+	expect((await ruleRow(id)).lastWhy).toContain('encendido «Termo» 1 hora');
+});
+
+test('asked for, the satellite says no: whom it is for told why', async () => {
+	const [{ id }] = await db
+		.insert(rule)
+		.values(errand(fromNow(-1)))
+		.returning({ id: rule.id });
+	await satelliteWith(id, 3, true);
+	satelliteSays = 'refused';
+	await checkTimedRules('A');
+	expect(told).toHaveLength(1);
+	expect(told[0]!.body).toContain('no lo deja su satélite (no es su hora)');
+	expect(switched).toEqual([]);
 });

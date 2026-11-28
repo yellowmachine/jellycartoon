@@ -726,6 +726,7 @@ const runner = createRunner({
 });
 if (relay) {
 	relay.onCycle((id, event) => runner.cycle(id, event));
+	relay.onAsked((id, rule) => runner.asked(id, rule));
 	runner.start();
 }
 

@@ -14,12 +14,22 @@ export const MAX_PLUG_MIN = 4 * 60;
 export const MAX_SATELLITE_RULES = 100;
 /** A rule said to the satellite is taken unsigned only this long after it heard an order. */
 export const VOICE_RULES_MS = 2 * 60_000;
+/**
+ * A rule whose moment only Seilide knows (#651, phase 4: the weather, arriving home…): done when
+ * Seilide asks, at most this many times a day, and at least this long apart.
+ */
+export const ASKED_PER_DAY = 4;
+export const ASKED_GAP_MIN = 30;
 
-/** When: every day at a time, one day at a time, or a plug's cycle that starts or ends. */
+/**
+ * When: every day at a time, one day at a time, or a plug's cycle that starts or ends; or (#651,
+ * phase 4) a moment only Seilide knows (`seilide`, always `asked`).
+ */
 export type SatelliteWhen =
 	| { kind: 'cada_dia'; time: string }
 	| { kind: 'en_fecha'; day: string; time: string }
-	| { kind: 'enchufe'; plugs: string[]; moment: 'empieza' | 'termina' };
+	| { kind: 'enchufe'; plugs: string[]; moment: 'empieza' | 'termina' }
+	| { kind: 'seilide' };
 
 export interface SatelliteRule {
 	/** Its id in Seilide: what it did is told back by it. */
@@ -31,6 +41,13 @@ export interface SatelliteRule {
 	minutes: number | null;
 	/** Done once, and then not again (an errand). */
 	once: boolean;
+	/**
+	 * Done only when Seilide asks (#651, phase 4: «cumple la regla N»), because only Seilide knows
+	 * whether its conditions hold, or its moment: and then only at its moment as the satellite sees
+	 * it (its time, a cycle it read itself), or, for a moment only Seilide knows, a few times a day.
+	 * What it does, on which plug and for how long, is still what was signed.
+	 */
+	asked?: true;
 }
 
 /** The list, as signed: for which satellite (its fingerprint), and its version, which only goes up. */
@@ -71,6 +88,7 @@ function validWhen(w: unknown): w is SatelliteWhen {
 			w.plugs.length <= 20 &&
 			w.plugs.every(isShellyId)
 		);
+	if (w.kind === 'seilide') return onlyKeys(w, ['kind']);
 	return false;
 }
 
@@ -78,7 +96,10 @@ function validWhen(w: unknown): w is SatelliteWhen {
 export function validRule(r: unknown): r is SatelliteRule {
 	return (
 		isObject(r) &&
-		onlyKeys(r, ['id', 'when', 'plug', 'on', 'minutes', 'once']) &&
+		onlyKeys(r, ['id', 'when', 'plug', 'on', 'minutes', 'once', 'asked']) &&
+		(r.asked === undefined || r.asked === true) &&
+		// A moment only Seilide knows: only when it asks.
+		(r.asked === true || (isObject(r.when) && r.when.kind !== 'seilide')) &&
 		Number.isSafeInteger(r.id) &&
 		(r.id as number) > 0 &&
 		validWhen(r.when) &&
@@ -116,8 +137,19 @@ export function canonical(r: SatelliteRule): SatelliteRule {
 			? { kind: 'cada_dia', time: r.when.time }
 			: r.when.kind === 'en_fecha'
 				? { kind: 'en_fecha', day: r.when.day, time: r.when.time }
-				: { kind: 'enchufe', plugs: [...r.when.plugs].sort(), moment: r.when.moment };
-	return { id: r.id, when, plug: r.plug, on: r.on, minutes: r.minutes, once: r.once };
+				: r.when.kind === 'enchufe'
+					? { kind: 'enchufe', plugs: [...r.when.plugs].sort(), moment: r.when.moment }
+					: { kind: 'seilide' };
+	return {
+		id: r.id,
+		when,
+		plug: r.plug,
+		on: r.on,
+		minutes: r.minutes,
+		once: r.once,
+		// Only when so: a list signed before it means the same.
+		...(r.asked ? { asked: true as const } : {})
+	};
 }
 
 /** The list sorted by id, each rule canonical: what is compared, and what is signed. */

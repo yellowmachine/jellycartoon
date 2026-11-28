@@ -153,3 +153,95 @@ describe('el satélite cumple sus reglas (#651, fase 3)', () => {
 		expect(s.rules.outbox()).toHaveLength(0);
 	});
 });
+
+describe('«cumple la regla N», pedida por Seilide (#651, fase 4)', () => {
+	test('a su hora sí, una vez; fuera de su hora o sin hora comprobada, no; y nunca sola', async () => {
+		// «Si va a helar, enciende el calefactor del garaje a las 6:00, 60 minutos».
+		const s = setup([
+			termo({ when: { kind: 'cada_dia', time: '06:00' }, on: true, minutes: 60, asked: true })
+		]);
+		s.set(at('06:00'));
+		s.runner.tick();
+		await s.settle();
+		expect(s.switched).toEqual([]);
+		s.set(at('05:59'));
+		expect(await s.runner.asked(PLUG, 1)).toEqual({ ok: false, why: 'no es su hora' });
+		s.set(at('06:02'));
+		s.clock(false);
+		expect(await s.runner.asked(PLUG, 1)).toEqual({
+			ok: false,
+			why: 'no tiene la hora comprobada'
+		});
+		s.clock(true);
+		expect(await s.runner.asked(PLUG, 1)).toEqual({ ok: true });
+		expect(s.switched).toEqual([`${PLUG} on 60`]);
+		expect(await s.runner.asked(PLUG, 1)).toEqual({ ok: false, why: 'ya la ha cumplido' });
+		s.set(at('06:30'));
+		expect(await s.runner.asked(PLUG, 1)).toEqual({ ok: false, why: 'no es su hora' });
+		// It heard it: nothing left to tell later.
+		await s.runner.flush();
+		expect(s.told).toEqual([]);
+	});
+
+	test('solo las firmadas para pedirlas, y por su enchufe', async () => {
+		const s = setup([
+			termo({ id: 1, when: { kind: 'seilide' }, on: true, minutes: 30, asked: true }),
+			termo({ id: 2 })
+		]);
+		expect(await s.runner.asked(PLUG, 2)).toMatchObject({ ok: false });
+		expect(await s.runner.asked(PLUG, 9)).toMatchObject({ ok: false });
+		expect(await s.runner.asked(WASHER, 1)).toEqual({
+			ok: false,
+			why: 'esa regla es de otro enchufe'
+		});
+		expect(s.switched).toEqual([]);
+	});
+
+	test('un ciclo que ha visto él mismo, hace poco', async () => {
+		// «Cuando acabe la lavadora, si es de noche, apaga el termo».
+		const s = setup([
+			termo({ when: { kind: 'enchufe', plugs: [WASHER], moment: 'termina' }, asked: true })
+		]);
+		expect(await s.runner.asked(PLUG, 1)).toEqual({ ok: false, why: 'no ha visto ese ciclo' });
+		s.runner.cycle(WASHER, 'finished');
+		await s.settle();
+		expect(s.switched).toEqual([]);
+		s.set(at('21:03'));
+		expect(await s.runner.asked(PLUG, 1)).toEqual({ ok: true });
+		expect(await s.runner.asked(PLUG, 1)).toEqual({ ok: false, why: 'ya la ha cumplido' });
+		s.set(at('21:30'));
+		s.runner.cycle(WASHER, 'started');
+		expect(await s.runner.asked(PLUG, 1)).toEqual({ ok: false, why: 'no ha visto ese ciclo' });
+	});
+
+	test('un momento que solo sabe Seilide: unas pocas veces al día, separadas', async () => {
+		// «Cuando llegue a casa, enciende la estufa 30 minutos».
+		const s = setup([termo({ when: { kind: 'seilide' }, on: true, minutes: 30, asked: true })]);
+		s.set(at('08:00'));
+		expect(await s.runner.asked(PLUG, 1)).toEqual({ ok: true });
+		s.set(at('08:10'));
+		expect(await s.runner.asked(PLUG, 1)).toEqual({
+			ok: false,
+			why: 'la cumplió hace menos de 30 minutos'
+		});
+		for (const t of ['09:00', '12:00', '18:00']) {
+			s.set(at(t));
+			expect(await s.runner.asked(PLUG, 1)).toEqual({ ok: true });
+		}
+		s.set(at('22:00'));
+		expect(await s.runner.asked(PLUG, 1)).toEqual({
+			ok: false,
+			why: 'ya la ha cumplido 4 veces hoy'
+		});
+		s.set(at('08:00', '2026-11-29'));
+		expect(await s.runner.asked(PLUG, 1)).toEqual({ ok: true });
+		expect(s.switched).toHaveLength(5);
+	});
+
+	test('el candado también la para', async () => {
+		const s = setup([termo({ when: { kind: 'seilide' }, on: true, minutes: 30, asked: true })]);
+		s.rules.setGuards({ [PLUG]: { locked: true, paused: false, heatUntil: null } });
+		expect(await s.runner.asked(PLUG, 1)).toEqual({ ok: true, failed: 'tiene el candado puesto' });
+		expect(s.switched).toEqual([]);
+	});
+});

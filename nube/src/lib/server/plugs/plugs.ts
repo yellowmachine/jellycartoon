@@ -434,6 +434,21 @@ export async function switchIn(
 	return true;
 }
 
+/**
+ * One of the rules its satellite keeps to be asked for (#651, phase 4): «Satelite.Cumple», and it
+ * does what was signed, if it is its moment as it sees it. What went wrong (its padlock…), or null.
+ * Refused (not its moment, not signed so…): PlugRefused, with its reason; not connected: PlugOffline.
+ */
+export async function askSatellite(k: Pick<Kitchen, 'familyId'>, id: string, ruleId: number) {
+	const said = (await hub.call(id, 'Satelite.Cumple', { rule: ruleId })) as {
+		done?: unknown;
+		failed?: unknown;
+	};
+	void hub.readTimer(id);
+	if (said?.done === true) return null;
+	return typeof said?.failed === 'string' ? said.failed : 'no ha dicho si lo ha hecho';
+}
+
 /** A person's family, to run in it. */
 async function kitchenOfUser(userId: string): Promise<Pick<Kitchen, 'familyId' | 'run'>> {
 	const familyId = await withFamily(userId, async (_, m) => m.familyId);

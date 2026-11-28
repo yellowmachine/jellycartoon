@@ -14,7 +14,7 @@ import { dosesFor, listMedication } from '#lib/server/medication.ts';
 import { hoursAhead, type HourAhead } from 'comun/weather.ts';
 import { fridgeState, houseKitchen, kitchenOf, type Kitchen } from '#lib/server/fridge.ts';
 import { keepQuietly, tell } from '#lib/server/inbox.ts';
-import { heldRuleIds } from '#lib/server/plugs/held-rules.ts';
+import { bySatellite, heldRuleIds } from '#lib/server/plugs/held-rules.ts';
 import type { RuleDone } from 'comun/plug-rules.ts';
 import { startTimerAt } from '#lib/server/alarms/alarms.ts';
 import { listMemories, remember } from '#lib/server/memory.ts';
@@ -59,7 +59,7 @@ import { DRAFT_ID, simulate, withIfs, type Deduced, type WhatIf } from '#lib/ser
 import { voiceSettings } from '#lib/server/voice/settings.ts';
 import { solarState } from '#lib/server/energy/solar.ts';
 import { PlugOffline, PlugRefused } from '#lib/server/plugs/hub.ts';
-import { HEAT_MS, plugsOf, setPausedIn, switchIn } from '#lib/server/plugs/plugs.ts';
+import { askSatellite, HEAT_MS, plugsOf, setPausedIn, switchIn } from '#lib/server/plugs/plugs.ts';
 import { sensorsIn } from '#lib/server/plugs/sensors.ts';
 import { PLUG_KINDS } from '#lib/plugs.ts';
 import { EXPENSE_CATEGORIES } from 'comun/expenses.ts';
@@ -801,8 +801,11 @@ async function fire(
 async function switchFor(k: Kitchen, r: Rule, p: RulePlug, why: string) {
 	let failed: string | null;
 	let heats = false;
+	// Kept by its satellite to be asked for (#651, phase 4): it does what was signed, now.
+	const asked = p.pause === undefined && (await heldRuleIds(k.familyId)).get(r.id)?.asked;
 	try {
-		if (p.pause !== undefined) {
+		if (asked) failed = await askSatellite(k, p.plugId, r.id);
+		else if (p.pause !== undefined) {
 			// Its pause (#557): as on its card; already so, nothing to do but it is done.
 			const done = await setPausedIn(k, p.plugId, p.pause);
 			heats = done.heats;
@@ -829,7 +832,9 @@ async function switchFor(k: Kitchen, r: Rule, p: RulePlug, why: string) {
 			error instanceof PlugOffline
 				? 'no está conectado'
 				: error instanceof PlugRefused
-					? 'no deja que Seilide lo haga solo (Enchufes → «Seilide puede hacerlo solo»)'
+					? asked
+						? `no lo deja su satélite (${error.message.replace(/^El satélite no lo deja: /, '')})`
+						: 'no deja que Seilide lo haga solo (Enchufes → «Seilide puede hacerlo solo»)'
 					: `no ha contestado (${error instanceof Error ? error.message : error})`;
 	}
 	const did = failed
@@ -1079,7 +1084,7 @@ async function onPurchase(k: Kitchen, store: string, bought: Bought) {
 async function onPlug(k: Kitchen, p: PlugHappened) {
 	const held = await heldRuleIds(k.familyId);
 	const rules = (await allRules(houseKitchen(k.familyId))).filter(
-		(r) => !r.paused && !held.has(r.id) && plugFits(r, p)
+		(r) => !r.paused && !bySatellite(held, r.id) && plugFits(r, p)
 	);
 	if (!rules.length) return;
 	const w = worldNow(k.familyId);
@@ -1200,7 +1205,7 @@ export async function checkTimedRules(familyId: string) {
 	const rules = every.filter(
 		(r) =>
 			!r.paused &&
-			!held.has(r.id) &&
+			!bySatellite(held, r.id) &&
 			!['nevera', 'recuerdo', 'dicho', 'compra', 'enchufe', 'lugar', 'cita_hecha'].includes(
 				r.spec.when.kind
 			)

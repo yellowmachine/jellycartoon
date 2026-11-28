@@ -107,6 +107,9 @@ export function createRules({ file, trust, orderAgo, ownPlug, log, now = Date.no
 			save({ ...kept, guards: g });
 		},
 		isDone: (id: number, key: string) => (kept.done ?? []).includes(`${id}|${key}`),
+		/** A rule's times done, as kept (the last ones). */
+		doneKeys: (id: number) =>
+			(kept.done ?? []).filter((d) => d.startsWith(`${id}|`)).map((d) => d.slice(`${id}|`.length)),
 		/** Done (or let go): not again, also after a restart. */
 		markDone(id: number, key: string) {
 			save({ ...kept, done: [...(kept.done ?? []), `${id}|${key}`].slice(-MAX_DONE) });

@@ -174,7 +174,7 @@ export function check(text: string): Verdict {
 		return { ok: false, id, src, why: `${method} con algo de más` };
 	const rpc = { id, src, method, params: frame.params };
 	if (READ.has(method)) return { ok: true, kind: 'read', rpc };
-	if (method === 'Satelite.Estado' || method === 'Satelite.Firmada')
+	if (method === 'Satelite.Estado' || method === 'Satelite.Firmada' || method === 'Satelite.Cumple')
 		return { ok: true, kind: 'read', rpc };
 	const allowed = CHANGE[method];
 	if (!allowed) return { ok: false, id, src, why: `${method} no está permitido` };
@@ -205,7 +205,9 @@ const asRpc = (r: Rpc) =>
 
 /** What to do with a frame from Seilide: send it on to the plug, or answer Seilide. */
 export type Decision =
-	{ toPlug: string; change: boolean; by?: string } | { toSeilide: string | null; why?: string };
+	| { toPlug: string; change: boolean; by?: string }
+	| { toSeilide: string | null; why?: string }
+	| { asked: number; id: number; src: string | null };
 
 /**
  * A frame from Seilide for the plug `shellyId` (null until it has said who it is): read freely;
@@ -222,6 +224,13 @@ export function decide(text: string, trust: Trust, shellyId: string | null): Dec
 				auto: shellyId ? trust.auto(shellyId) : false
 			})
 		};
+	// One of its rules, now (#651, phase 4): the satellite's rules say whether it may.
+	if (rpc.method === 'Satelite.Cumple') {
+		const p = rpc.params;
+		if (!isObject(p) || !onlyKeys(p, ['rule']) || !Number.isSafeInteger(p.rule) || !shellyId)
+			return { toSeilide: refusal(rpc.id, rpc.src, 'regla sin sentido'), why: 'regla' };
+		return { asked: p.rule as number, id: rpc.id, src: rpc.src };
+	}
 	if (rpc.method === 'Satelite.Firmada') {
 		const p = rpc.params;
 		if (!isObject(p) || typeof p.envelope !== 'string' || typeof p.sig !== 'string')
@@ -276,10 +285,17 @@ export interface RelayOptions {
 	 * by its Shelly id, for the rules the satellite keeps.
 	 */
 	onCycle?: (shellyId: string, event: CycleEvent) => void;
+	/** Seilide asks for one of the satellite's rules now (#651, phase 4): done, or why not. */
+	onAsked?: AskedListener;
 	/** Seilide's side dropped: first tried again this long after (a test, sooner). */
 	upRetryMs?: number;
 	now?: () => number;
 }
+
+export type AskedListener = (
+	shellyId: string,
+	rule: number
+) => Promise<{ ok: false; why: string } | { ok: true; failed?: string }>;
 
 /** The plugs' WebSocket, and the satellite's pages, here; closed with `close()`. */
 export function startRelay({
@@ -291,6 +307,7 @@ export function startRelay({
 	fromHome = isHomeIp,
 	page,
 	onCycle,
+	onAsked,
 	upRetryMs = UP_RETRY_MS,
 	now = Date.now
 }: RelayOptions) {
@@ -300,6 +317,7 @@ export function startRelay({
 	 */
 	const watches = new Map<string, PlugWatch>();
 	let cycleListener = onCycle;
+	let askedListener = onAsked;
 	/** The plugs that have come through here since it started, by their Shelly id (#651). */
 	const seenPlugs = new Set<string>();
 	/**
@@ -494,6 +512,23 @@ export function startRelay({
 		});
 		const fromSeilide = (data: unknown) => {
 			const decision = decide(String(data), trust, shellyId);
+			if ('asked' in decision) {
+				const { asked, id, src } = decision;
+				if (!askedListener) return toSeilide(refusal(id, src, 'aún no tiene reglas'));
+				return void askedListener(shellyId!, asked)
+					.then((r) => {
+						if (!r.ok) {
+							log(`Enchufe ${shellyId}: Seilide pide la regla ${asked}, no: ${r.why}`);
+							return toSeilide(refusal(id, src, r.why));
+						}
+						toSeilide(
+							answer(id, src, r.failed ? { done: false, failed: r.failed } : { done: true })
+						);
+					})
+					.catch((err) =>
+						toSeilide(refusal(id, src, err instanceof Error ? err.message : String(err)))
+					);
+			}
 			if ('batch' in decision) {
 				const at = now();
 				changes = changes.filter((t) => t > at - 60_000);
@@ -569,6 +604,10 @@ export function startRelay({
 		/** Who hears its plugs' cycles (#651: the rules), once it exists. */
 		onCycle(fn: (shellyId: string, event: CycleEvent) => void) {
 			cycleListener = fn;
+		},
+		/** Who does the rules Seilide asks for (#651, phase 4). */
+		onAsked(fn: AskedListener) {
+			askedListener = fn;
 		},
 		/** Whether that plug has come through here (#651: its rules said by voice). */
 		hasPlug: (shellyId: string) => seenPlugs.has(shellyId),

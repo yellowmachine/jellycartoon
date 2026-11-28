@@ -157,6 +157,18 @@ describe('signed orders (phase 2)', () => {
 		).toBe(true);
 	});
 
+	test('«cumple la regla N» (#651, fase 4): unsigned, only its rule id, and only once it knows the plug', () => {
+		const trust = newTrust();
+		expect(decide(ask('Satelite.Cumple', { rule: 12 }), trust, PLUG)).toEqual({
+			asked: 12,
+			id: 7,
+			src: 'seilide'
+		});
+		for (const params of [{ rule: 12, on: true }, { rule: '12' }, undefined])
+			expect('toSeilide' in decide(ask('Satelite.Cumple', params), trust, PLUG)).toBe(true);
+		expect('toSeilide' in decide(ask('Satelite.Cumple', { rule: 12 }), trust, null)).toBe(true);
+	});
+
 	test('its state, for Seilide', () => {
 		const trust = newTrust();
 		const d = decide(ask('Satelite.Estado'), trust, PLUG);
@@ -446,6 +458,43 @@ describe('the relay', () => {
 					PLUG
 				)
 		).toBe(true);
+		plug.close();
+		open.close();
+	});
+
+	test('Seilide asks for a rule (#651, fase 4): its answer, or why not, as from the plug', async () => {
+		const asked: string[] = [];
+		const open = startRelay({
+			port: relayPort + 5,
+			upstream: `ws://127.0.0.1:${seilidePort}/api/enchufe/`,
+			key: 'k',
+			trust,
+			log: () => {},
+			fromHome: () => true
+		});
+		open.onAsked(async (id, rule) => {
+			asked.push(`${id} ${rule}`);
+			return rule === 12 ? { ok: true } : { ok: false, why: 'no es su hora' };
+		});
+		const atSeilide = new Promise<WebSocket>((resolve) =>
+			seilide.once('connection', (ws) => ws.once('message', () => resolve(ws)))
+		);
+		const plug = new WebSocket(`ws://127.0.0.1:${relayPort + 5}/enchufe/${'d'.repeat(43)}`);
+		plug.on('open', () =>
+			plug.send(JSON.stringify({ src: PLUG, method: 'NotifyFullStatus', params: {} }))
+		);
+		const ws = await atSeilide;
+		const next = () => new Promise<string>((r) => ws.once('message', (m) => r(String(m))));
+		let answer = next();
+		ws.send(ask('Satelite.Cumple', { rule: 12 }));
+		expect(JSON.parse(await answer)).toMatchObject({ id: 7, result: { done: true } });
+		answer = next();
+		ws.send(ask('Satelite.Cumple', { rule: 13 }));
+		expect(JSON.parse(await answer)).toMatchObject({
+			id: 7,
+			error: { code: 403, message: 'El satélite no lo deja: no es su hora' }
+		});
+		expect(asked).toEqual([`${PLUG} 12`, `${PLUG} 13`]);
 		plug.close();
 		open.close();
 	});

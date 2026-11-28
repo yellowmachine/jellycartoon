@@ -82,6 +82,8 @@ export async function satelliteRulesState(k: Kitchen) {
 			name: s.name,
 			fp: s.trustFp!,
 			count: rules.length,
+			/** Of them, those Seilide asks for (#651, phase 4): conditions, or a moment only it knows. */
+			asked: rules.filter((r) => r.asked).length,
 			/** It keeps what it was offered last. */
 			kept: same && s.plugRulesKept >= offered!.version,
 			/** None to sign: the same as offered (it may not have taken them yet: it is told again). */
