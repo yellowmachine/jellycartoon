@@ -192,6 +192,13 @@ export interface PlugGuard {
 	paused: boolean;
 	/** Its long heat goes on until then, in ms; null, none. */
 	heatUntil: number | null;
+	/**
+	 * «Esta tarde no» (#557), from and until, in ms (#651, phase 5): its schedules do not switch it
+	 * on then. Unsigned, as the pause: on the plug's own schedules it only keeps them from switching
+	 * it on (`planJobs`).
+	 */
+	skipFrom?: number | null;
+	skipUntil?: number | null;
 }
 
 export function validGuards(v: unknown): v is Record<string, PlugGuard> {
@@ -226,4 +233,67 @@ export interface RuleDone {
 	failed?: string;
 	/** Its moment went by without the satellite doing it (a restart, no clock). */
 	missed?: boolean;
+}
+
+/**
+ * A plug's schedules as signed (#651, phase 5: `Satelite.Horarios` with a `plan`): its jobs as they
+ * are on a normal day, and what changes them for a while, with its end: paused, its long heat
+ * (none of its jobs until then), «esta tarde no» (not its «on» ones then). The satellite keeps it
+ * and puts them back itself when each ends, also without the internet.
+ */
+export interface PlugPlan {
+	paused: boolean;
+	heatUntil: number | null;
+	skipFrom: number | null;
+	skipUntil: number | null;
+}
+
+export interface PlanJob {
+	timespec: string;
+	on: boolean;
+	enable: boolean;
+}
+
+/** A heat is a few hours, a skip a couple of weeks: further, it is not a plan. */
+const MAX_HEAT_MS = 86_400_000;
+const MAX_SKIP_MS = 15 * 86_400_000;
+
+const msOrNull = (v: unknown) => v === null || (typeof v === 'number' && Number.isFinite(v));
+
+/** A plan as it has to be, by the satellite's clock now. */
+export function validPlan(v: unknown, now: number): v is PlugPlan {
+	if (!isObject(v) || !onlyKeys(v, ['paused', 'heatUntil', 'skipFrom', 'skipUntil'])) return false;
+	if (typeof v.paused !== 'boolean') return false;
+	if (!msOrNull(v.heatUntil) || !msOrNull(v.skipFrom) || !msOrNull(v.skipUntil)) return false;
+	if (v.heatUntil !== null && (v.heatUntil as number) > now + MAX_HEAT_MS) return false;
+	if ((v.skipFrom === null) !== (v.skipUntil === null)) return false;
+	if (
+		v.skipFrom !== null &&
+		((v.skipUntil as number) <= (v.skipFrom as number) ||
+			(v.skipUntil as number) > now + MAX_SKIP_MS)
+	)
+		return false;
+	return true;
+}
+
+const inside = (from: number | null | undefined, until: number | null | undefined, now: number) =>
+	from != null && until != null && from <= now && now < until;
+
+/**
+ * Its jobs now, as Seilide's jobsFor: none while paused or heating, not the «on» ones in a skip.
+ * What Seilide says unsigned (`guard`: a pause, a skip said to it) only keeps the «on» ones off:
+ * never switching it, nor leaving it on.
+ */
+export function planJobs(
+	base: PlanJob[],
+	plan: PlugPlan,
+	guard: PlugGuard | undefined,
+	now: number
+): PlanJob[] {
+	const enable = !plan.paused && !(plan.heatUntil !== null && plan.heatUntil > now);
+	const noOn =
+		inside(plan.skipFrom, plan.skipUntil, now) ||
+		guard?.paused === true ||
+		inside(guard?.skipFrom, guard?.skipUntil, now);
+	return base.map((j) => ({ ...j, enable: j.enable && enable && !(j.on && noOn) }));
 }

@@ -40,6 +40,7 @@ const {
 	setLocked,
 	setPaused,
 	applySignedSchedules,
+	planNow,
 	scheduleTarget,
 	signedSwitch,
 	switchPlug,
@@ -227,6 +228,25 @@ describe('enchufes', () => {
 			false
 		);
 		expect(await applySignedSchedules('otra', lampId, order('Satelite.Horarios'))).toBe(false);
+	});
+
+	test('its plan to sign (#651, fase 5): the heat and the skip while they last', () => {
+		const now = Date.parse('2026-11-28T18:00:00Z');
+		const at = (ms: number) => new Date(now + ms);
+		expect(
+			planNow(
+				{ paused: false, heatUntil: at(3_600_000), skipFrom: at(-1), skipUntil: at(60_000) },
+				now
+			)
+		).toEqual({
+			paused: false,
+			heatUntil: now + 3_600_000,
+			skipFrom: now - 1,
+			skipUntil: now + 60_000
+		});
+		expect(
+			planNow({ paused: true, heatUntil: at(-1), skipFrom: at(-2), skipUntil: at(-1) }, now)
+		).toEqual({ paused: true, heatUntil: null, skipFrom: null, skipUntil: null });
 	});
 
 	test('by voice for a while: the plug’s own timer, and when it ends said back', async () => {

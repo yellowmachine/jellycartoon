@@ -6,6 +6,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { doEnrolTask, pageHtml } from './alta.ts';
 import { check, decide, refusal, startRelay } from './relay.ts';
 import { createTrust, enrolledText, enrollText, fingerprint } from './trust.ts';
+import type { PlugGuard } from '../../packages/comun/src/plug-rules.ts';
 
 /**
  * What Seilide may ask of a plug through the satellite (#643): only what it uses (phase 1), and
@@ -453,6 +454,114 @@ describe('the relay', () => {
 					await signed(d, trust, 'Satelite.Horarios', {
 						jobs: [{ timespec: '* * * * * *', on: true, enable: true, method: 'Script.Start' }],
 						replace: []
+					}),
+					trust,
+					PLUG
+				)
+		).toBe(true);
+		plug.close();
+		open.close();
+	});
+
+	test('a signed plan (#651, fase 5): its jobs off while it heats, back by itself when it ends', async () => {
+		const { d } = await enrolled(trust);
+		let t = Date.now();
+		let guard: PlugGuard | undefined = undefined;
+		const open = startRelay({
+			port: relayPort + 6,
+			upstream: `ws://127.0.0.1:${seilidePort}/api/enchufe/`,
+			key: 'k',
+			trust,
+			log: () => {},
+			fromHome: () => true,
+			guardOf: () => guard,
+			now: () => t
+		});
+		const atSeilide = new Promise<WebSocket>((resolve) =>
+			seilide.once('connection', (ws) => ws.once('message', () => resolve(ws)))
+		);
+		const plug = new WebSocket(`ws://127.0.0.1:${relayPort + 6}/enchufe/${'e'.repeat(43)}`);
+		const asked: { method: string; params?: Record<string, unknown> }[] = [];
+		const jobs = new Map<number, unknown>();
+		let next = 21;
+		plug.on('message', (m) => {
+			const f = JSON.parse(String(m));
+			asked.push({ method: f.method, params: f.params });
+			let result: unknown = {};
+			if (f.method === 'Schedule.List')
+				result = {
+					jobs: [...jobs.keys()].map((id) => ({ id, calls: [{ method: 'Switch.Set' }] }))
+				};
+			if (f.method === 'Schedule.Create') {
+				jobs.set(next, f.params);
+				result = { id: next++ };
+			}
+			if (f.method === 'Schedule.Delete') jobs.delete(f.params.id);
+			plug.send(JSON.stringify({ id: f.id, src: PLUG, result }));
+		});
+		plug.on('open', () => plug.send(JSON.stringify({ src: PLUG, method: 'NotifyFullStatus' })));
+		const up = await atSeilide;
+		await new Promise((r) => setTimeout(r, 1100));
+		asked.length = 0;
+		const base = [
+			{ timespec: '0 0 7 * * 1', on: true, enable: true },
+			{ timespec: '0 0 8 * * 1', on: false, enable: true }
+		];
+		// Out of a long pause, a water heater heats 4 hours: its jobs off until then.
+		const heatUntil = t + 4 * 3_600_000;
+		up.send(
+			await signed(d, trust, 'Satelite.Horarios', {
+				jobs: base,
+				replace: [],
+				onFor: 4 * 3600,
+				plan: { paused: false, heatUntil, skipFrom: null, skipUntil: null }
+			})
+		);
+		await new Promise((r) => setTimeout(r, 100));
+		const enables = () =>
+			asked.filter((a) => a.method === 'Schedule.Create').map((a) => a.params!.enable);
+		expect(asked[0]).toEqual({
+			method: 'Switch.Set',
+			params: { id: 0, on: true, toggle_after: 4 * 3600 }
+		});
+		expect(enables()).toEqual([false, false]);
+		// Still heating: nothing to write.
+		asked.length = 0;
+		open.followPlans();
+		await new Promise((r) => setTimeout(r, 50));
+		expect(asked).toEqual([]);
+		// Its heat over, without Seilide: its jobs back.
+		t = heatUntil + 1000;
+		open.followPlans();
+		await new Promise((r) => setTimeout(r, 100));
+		expect(enables()).toEqual([true, true]);
+		expect([...jobs.values()].map((j) => (j as { enable: boolean }).enable)).toEqual([true, true]);
+		// «Esta tarde no», said unsigned: only its «on» job off; never switched.
+		asked.length = 0;
+		guard = {
+			locked: false,
+			paused: false,
+			heatUntil: null,
+			skipFrom: t,
+			skipUntil: t + 3_600_000
+		};
+		open.followPlans();
+		await new Promise((r) => setTimeout(r, 100));
+		expect(enables()).toEqual([false, true]);
+		expect(asked.some((a) => a.method === 'Switch.Set')).toBe(false);
+		// A heat longer than a day is not a plan.
+		expect(
+			'toSeilide' in
+				decide(
+					await signed(d, trust, 'Satelite.Horarios', {
+						jobs: base,
+						replace: [],
+						plan: {
+							paused: false,
+							heatUntil: Date.now() + 3 * 86_400_000,
+							skipFrom: null,
+							skipUntil: null
+						}
 					}),
 					trust,
 					PLUG

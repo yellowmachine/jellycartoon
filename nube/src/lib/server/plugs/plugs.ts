@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gte, ne, sql } from 'drizzle-orm';
 import { parseBillDetails } from 'comun/bills.ts';
+import type { PlugPlan } from 'comun/plug-rules.ts';
 import { db } from '../db/index.ts';
 import {
 	bill,
@@ -542,7 +543,8 @@ function crossSkips() {
 		if (inside === s.inside && now < s.until) continue;
 		if (now >= s.until) skips.delete(plugId);
 		else s.inside = inside;
-		void syncPlug(s.familyId, plugId).catch(() => {});
+		// Through a satellite without the permission (#651, phase 5): its signed plan does it.
+		void trySync(s.familyId, plugId);
 	}
 }
 
@@ -551,7 +553,7 @@ function endHeats() {
 	for (const [plugId, heat] of heats)
 		if (heat.until <= now) {
 			heats.delete(plugId);
-			void syncPlug(heat.familyId, plugId).catch(() => {});
+			void trySync(heat.familyId, plugId);
 		}
 }
 
@@ -599,7 +601,24 @@ export interface ScheduleTarget {
 	id: string;
 	satellite: string;
 	deviceId: string;
-	params: { jobs: PlugJob[]; replace: number[]; off?: true; onFor?: number };
+	params: { jobs: PlugJob[]; replace: number[]; off?: true; onFor?: number; plan: PlugPlan };
+}
+
+/**
+ * Its plan as signed (#651, phase 5), from what Seilide keeps: paused, its heat and its skip while
+ * they last, in ms.
+ */
+export function planNow(
+	row: { paused: boolean; heatUntil: Date | null; skipFrom: Date | null; skipUntil: Date | null },
+	now: number
+): PlugPlan {
+	const skip = row.skipFrom && row.skipUntil && row.skipUntil.getTime() > now;
+	return {
+		paused: row.paused,
+		heatUntil: row.heatUntil && row.heatUntil.getTime() > now ? row.heatUntil.getTime() : null,
+		skipFrom: skip ? row.skipFrom!.getTime() : null,
+		skipUntil: skip ? row.skipUntil!.getTime() : null
+	};
 }
 
 /**
@@ -614,16 +633,16 @@ export async function scheduleTarget(familyId: string, plugId: string) {
 	if (!row?.deviceId || isSensorDevice(row.deviceId)) return null;
 	const now = Date.now();
 	const heatLeft = row.heatUntil ? row.heatUntil.getTime() - now : 0;
-	const skipping = Boolean(
-		row.skipFrom && row.skipUntil && row.skipFrom.getTime() <= now && now < row.skipUntil.getTime()
-	);
 	const target: ScheduleTarget = {
 		id: plugId,
 		satellite: live.satellite,
 		deviceId: row.deviceId,
 		params: {
-			jobs: jobsFor(schedules, !row.paused && heatLeft <= 0, skipping),
-			replace: row.scheduleJobs
+			// Those of a normal day, and its plan (#651, phase 5): the satellite makes them as it says
+			// now, and again as its heat or its skip ends, without Seilide.
+			jobs: jobsFor(schedules, true),
+			replace: row.scheduleJobs,
+			plan: planNow(row, now)
 		}
 	};
 	if (row.paused) target.params.off = true;

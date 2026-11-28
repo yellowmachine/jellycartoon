@@ -207,7 +207,9 @@ export async function guardsFor(k: Kitchen, satelliteId: string) {
 				deviceId: plug.deviceId,
 				locked: plug.locked,
 				paused: plug.paused,
-				heatUntil: plug.heatUntil
+				heatUntil: plug.heatUntil,
+				skipFrom: plug.skipFrom,
+				skipUntil: plug.skipUntil
 			})
 			.from(plug)
 			.where(and(eq(plug.familyId, k.familyId), eq(plug.satelliteFp, fp)))
@@ -218,7 +220,11 @@ export async function guardsFor(k: Kitchen, satelliteId: string) {
 			guards[r.deviceId] = {
 				locked: r.locked,
 				paused: r.paused,
-				heatUntil: r.heatUntil ? r.heatUntil.getTime() : null
+				heatUntil: r.heatUntil ? r.heatUntil.getTime() : null,
+				// «Esta tarde no» (#651, phase 5): its schedules do not switch it on then.
+				...(r.skipFrom && r.skipUntil && r.skipUntil > new Date()
+					? { skipFrom: r.skipFrom.getTime(), skipUntil: r.skipUntil.getTime() }
+					: {})
 			};
 	return guards;
 }

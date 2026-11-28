@@ -213,6 +213,18 @@ entrara solo podría elegir cuándo, dentro de esos límites, nunca qué ni dón
 el permiso «Seilide puede hacerlo solo» para ellas. Sin internet no se cumplen, porque nadie sabe
 si se cumplen sus condiciones.
 
+**El calentón, la pausa y «esta tarde no»** de los horarios de un enchufe (fase 5) van en la firma
+de sus horarios (`Satelite.Horarios` con `plan`): los horarios de un día normal y, con su fin,
+la pausa, el calentón (sin horarios hasta que acaba) y «esta tarde no» (sin los de encender
+mientras dura). El satélite lo guarda y pone él los horarios como toque, también cuando acaba el
+calentón o el «esta tarde no», sin Seilide ni internet (lo mira cada 30 segundos, con el reloj
+comprobado). Si se reinicia o el enchufe se reconecta, los vuelve a poner como toque ahora.
+
+Lo que se dice sin firmar, como una pausa o un «esta tarde no» por voz, llega en `plugGuards`, y en
+los horarios **solo quita los de encender**: no enciende, no apaga y no deja nada encendido.
+Quitar una pausa sin firmar no hace calentar el termo: para eso hay que firmar. Si Seilide pone los
+horarios él (con el permiso «Seilide puede hacerlo solo»), el satélite olvida el plan firmado.
+
 Al darlo de alta (**Enchufes → Buscar enchufes → Añadir**), el satélite le pone también una
 contraseña suya, para que nadie más en la wifi lo cambie desde su página. Se guarda solo en el
 satélite (`/data/enchufes.json`, en su volumen) y no se manda a Seilide. Los enchufes que ya iban

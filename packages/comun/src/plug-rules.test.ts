@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	MAX_PLUG_MIN,
+	planJobs,
+	validPlan,
 	sameRules,
 	validRules,
 	voiceChangeOk,
@@ -47,5 +49,57 @@ describe('las reglas que guarda un satélite (#651)', () => {
 		expect(voiceChangeOk([rule()], [rule({ on: false })], own)).toBe(false);
 		expect(voiceChangeOk([], [rule({ plug: 'shellyplugmg3-9' })], own)).toBe(false);
 		expect(voiceChangeOk([rule()], [], own)).toBe(true);
+	});
+});
+
+describe('el plan de los horarios de un enchufe (#651, fase 5)', () => {
+	const base = [
+		{ timespec: '0 0 7 * * 1', on: true, enable: true },
+		{ timespec: '0 0 8 * * 1', on: false, enable: true }
+	];
+	const plan = { paused: false, heatUntil: null, skipFrom: null, skipUntil: null };
+	const now = Date.parse('2026-11-28T18:00:00+01:00');
+	const enables = (jobs: { enable: boolean }[]) => jobs.map((j) => j.enable);
+
+	test('un día normal, todos; en pausa o calentando, ninguno; «esta tarde no», sin el de encender', () => {
+		expect(enables(planJobs(base, plan, undefined, now))).toEqual([true, true]);
+		expect(enables(planJobs(base, { ...plan, paused: true }, undefined, now))).toEqual([
+			false,
+			false
+		]);
+		expect(enables(planJobs(base, { ...plan, heatUntil: now + 1 }, undefined, now))).toEqual([
+			false,
+			false
+		]);
+		expect(enables(planJobs(base, { ...plan, heatUntil: now }, undefined, now))).toEqual([
+			true,
+			true
+		]);
+		const skip = { ...plan, skipFrom: now - 1, skipUntil: now + 1 };
+		expect(enables(planJobs(base, skip, undefined, now))).toEqual([false, true]);
+		expect(enables(planJobs(base, skip, undefined, now + 1))).toEqual([true, true]);
+	});
+
+	test('lo dicho sin firmar solo quita el de encender: nunca vuelve a poner nada', () => {
+		const paused = { locked: false, paused: true, heatUntil: null };
+		expect(enables(planJobs(base, plan, paused, now))).toEqual([false, true]);
+		const skip = { ...paused, paused: false, skipFrom: now - 1, skipUntil: now + 1 };
+		expect(enables(planJobs(base, plan, skip, now))).toEqual([false, true]);
+		// Signed paused: no unsigned guard brings it back.
+		expect(
+			enables(planJobs(base, { ...plan, paused: true }, { ...paused, paused: false }, now))
+		).toEqual([false, false]);
+	});
+
+	test('un plan con sentido: calentar como mucho un día, saltar como mucho dos semanas', () => {
+		expect(validPlan(plan, now)).toBe(true);
+		expect(validPlan({ ...plan, heatUntil: now + 4 * 3_600_000 }, now)).toBe(true);
+		expect(validPlan({ ...plan, heatUntil: now + 2 * 86_400_000 }, now)).toBe(false);
+		expect(validPlan({ ...plan, skipFrom: now }, now)).toBe(false);
+		expect(validPlan({ ...plan, skipFrom: now, skipUntil: now - 1 }, now)).toBe(false);
+		expect(validPlan({ ...plan, skipFrom: now, skipUntil: now + 30 * 86_400_000 }, now)).toBe(
+			false
+		);
+		expect(validPlan({ ...plan, extra: 1 }, now)).toBe(false);
 	});
 });
