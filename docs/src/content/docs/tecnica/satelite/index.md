@@ -120,13 +120,13 @@ satélite, porque depende de su micrófono y de su habitación.
 ## En qué idioma se le habla
 
 Cada satélite tiene sus idiomas en **Ajustes → Familia → «Satélites de voz» → Le hablan en**:
-español, inglés o francés (#647). Con uno solo, el reconocimiento (el Whisper de la casa, también
+español, inglés, francés o italiano (#647). Con uno solo, el reconocimiento (el Whisper de la casa, también
 directo, o OpenRouter) oye en ese idioma, y contesta en él. Con varios, el reconocimiento adivina
 cuál es, y **Contesta en** elige: uno de ellos o «Como le hablen». Una orden corta puede salir en el
 idioma que no es, así que con uno solo oye mejor. Lo cambia al momento, sin tocar la Raspberry. La
 palabra que lo despierta es la misma en cualquier idioma.
 
-Por ahora, en inglés o francés no dice las frases de relleno mientras piensa, y lo que dice por su
+Por ahora, en inglés, francés o italiano no dice las frases de relleno mientras piensa, y lo que dice por su
 cuenta (sin clave, sin saldo, los avisos) sigue en español. La voz es la de la familia: «Cómo habla»
 con un acento de aquí lo lleva también al otro idioma.
 

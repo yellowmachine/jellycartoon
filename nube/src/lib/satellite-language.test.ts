@@ -12,6 +12,7 @@ describe('idiomas del satélite (#647)', () => {
 		expect(heardLanguages(null)).toEqual(['es']);
 		expect(heardLanguages(['de', 7])).toEqual(['es']);
 		expect(heardLanguages(['fr', 'es', 'fr'])).toEqual(['es', 'fr']);
+		expect(heardLanguages(['it', 'en'])).toEqual(['en', 'it']);
 	});
 
 	test('con un solo idioma, contesta en ese y se oye en ese', () => {
@@ -30,11 +31,14 @@ describe('idiomas del satélite (#647)', () => {
 	test('en español, lo de siempre', () => {
 		expect(saidIn('es')).toBe('en español');
 		expect(saidIn('en')).toContain('in English');
+		expect(saidIn('it')).toContain('in italiano');
 	});
 
 	test('con cada orden, el idioma otra vez; en español, nada', () => {
 		expect(languageLine('es')).toBeNull();
 		expect(languageLine('fr')).toContain('Réponds en français');
 		expect(languageLine('en')).toContain('Answer in English');
+		expect(languageLine('it')).toContain('Rispondi in italiano');
+		expect(languageLine('auto')).toContain('rispondi in italiano');
 	});
 });
