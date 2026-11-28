@@ -49,18 +49,41 @@ export interface Note {
 	lat: number | null;
 	/** A web saved to read later (#634): its address; null, an ordinary note. */
 	link: string | null;
-	/** Of that web's article, when it could be read: to say it before opening it. */
-	article: { minutes: number; site: string | null } | null;
+	/** Of that web's article, when it could be read: to say it before opening it, and how it starts. */
+	article: { minutes: number; site: string | null; excerpt: string } | null;
 	tags: string[];
 }
 
-/** Notas' tabs, in their order: said, with a photo, written, and webs to read. */
-export const NOTE_KINDS = ['voz', 'foto', 'texto', 'leer'] as const;
+/**
+ * Notas' tabs, in their order: said, with a photo, and Textos, the written ones and the webs to read
+ * (#634), together since 2026-11-28.
+ */
+export const NOTE_KINDS = ['voz', 'foto', 'texto'] as const;
 export type NoteKind = (typeof NOTE_KINDS)[number];
 
-/** Which tab a note is in: a web first, then a photo, then whether it was said or written. */
+/** In Textos, only the notes written or only the webs to read; null, both. */
+export type TextOnly = 'notas' | 'leer' | null;
+
+/** Which tab a note is in: with a photo, in Foto; a web or written, in Textos; said, in Voz. */
 export const noteKind = (n: Pick<Note, 'link' | 'photo' | 'source'>): NoteKind =>
-	n.link ? 'leer' : n.photo ? 'foto' : n.source === 'escrita' ? 'texto' : 'voz';
+	n.photo ? 'foto' : n.link || n.source === 'escrita' ? 'texto' : 'voz';
+
+/**
+ * The tab and what of Textos, from Notas' address: `?foto`, `?texto` (`&solo=notas` or `&solo=leer`);
+ * the old `?leer`, Textos with only the webs. Nothing, Voz.
+ */
+export function notesTabOf(params: URLSearchParams): { kind: NoteKind; only: TextOnly } {
+	if (params.has('leer')) return { kind: 'texto', only: 'leer' };
+	const kind = NOTE_KINDS.find((k) => params.has(k)) ?? 'voz';
+	const only = params.get('solo');
+	return { kind, only: kind === 'texto' && (only === 'notas' || only === 'leer') ? only : null };
+}
+
+/** What is written, when it is only a web's address (then it is saved to read); null, a note. */
+export function onlyLink(text: string) {
+	const t = text.trim();
+	return /^https?:\/\/\S+$/i.test(t) ? t : null;
+}
 
 /** When a photo says it was taken, if it makes sense: not to come, nor before there were any. */
 export function photoMoment(ms: number, now = Date.now()) {

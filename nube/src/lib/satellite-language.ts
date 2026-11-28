@@ -3,7 +3,7 @@
  * Ajustes → Satélites de voz. Spanish by default, as before.
  */
 
-export const SATELLITE_LANGUAGES = ['es', 'en', 'fr'] as const;
+export const SATELLITE_LANGUAGES = ['es', 'en', 'fr', 'it'] as const;
 export type SatelliteLanguage = (typeof SATELLITE_LANGUAGES)[number];
 
 /** What it answers in: one of them, or «como le hablen» (`auto`). */
@@ -13,7 +13,8 @@ export type AnswerLanguage = SatelliteLanguage | 'auto';
 export const LANGUAGE_NAMES: Record<SatelliteLanguage, string> = {
 	es: 'Español',
 	en: 'English',
-	fr: 'Français'
+	fr: 'Français',
+	it: 'Italiano'
 };
 
 export const isSatelliteLanguage = (code: unknown): code is SatelliteLanguage =>
@@ -54,8 +55,10 @@ export function saidIn(language: AnswerLanguage) {
 			return 'en inglés (in English), aunque te hablen en otro idioma';
 		case 'fr':
 			return 'en francés (en français), aunque te hablen en otro idioma';
+		case 'it':
+			return 'en italiano (in italiano), aunque te hablen en otro idioma';
 		case 'auto':
-			return 'en el idioma en que te hablen (español, inglés o francés)';
+			return 'en el idioma en que te hablen (español, inglés, francés o italiano)';
 	}
 }
 
@@ -72,7 +75,9 @@ export function languageLine(language: AnswerLanguage) {
 			return '[Contesta en inglés, aunque te hablen en español u otro idioma: el texto de «answer», en inglés. Answer in English.]';
 		case 'fr':
 			return '[Contesta en francés, aunque te hablen en español u otro idioma: el texto de «answer», en francés. Réponds en français.]';
+		case 'it':
+			return '[Contesta en italiano, aunque te hablen en español u otro idioma: el texto de «answer», en italiano. Rispondi in italiano.]';
 		case 'auto':
-			return '[El idioma de tu respuesta es el de esta orden: si está dicha en inglés, contesta en inglés; si en francés, en francés; si en español, en español. If this order is in English, answer in English. Si cette demande est en français, réponds en français.]';
+			return '[El idioma de tu respuesta es el de esta orden: si está dicha en inglés, contesta en inglés; si en francés, en francés; si en italiano, en italiano; si en español, en español. If this order is in English, answer in English. Si cette demande est en français, réponds en français. Se questa richiesta è in italiano, rispondi in italiano.]';
 	}
 }

@@ -28,7 +28,8 @@ import {
 	MAX_NOTE_TEXT,
 	type Note,
 	type NoteArticle,
-	type NoteKind
+	type NoteKind,
+	type TextOnly
 } from '#lib/notes.ts';
 import { readArticle } from '#lib/server/notes-reader.ts';
 
@@ -61,6 +62,9 @@ const IMAGES = {
 	'image/webp': 'webp'
 } as const;
 
+/** How much of a web's article its card shows. */
+const EXCERPT = 400;
+
 const VIEW = {
 	id: note.id,
 	at: note.at,
@@ -80,7 +84,8 @@ const VIEW = {
 	article: sql<{
 		minutes: number;
 		site: string | null;
-	} | null>`case when ${note.article} is null then null else jsonb_build_object('minutes', (${note.article}->>'minutes')::int, 'site', ${note.article}->>'site') end`
+		excerpt: string;
+	} | null>`case when ${note.article} is null then null else jsonb_build_object('minutes', (${note.article}->>'minutes')::int, 'site', ${note.article}->>'site', 'excerpt', left(${note.article}->>'text', ${EXCERPT})) end`
 };
 
 type Row = Omit<Note, 'hasAudio' | 'mine' | 'canEdit'> & {
@@ -294,18 +299,19 @@ export async function hearAgain(k: Kitchen, who: { id: string; email: string }, 
 export interface NoteFilter {
 	/** Notas' tabs: only the notes of that kind (`noteKind`). */
 	kind?: NoteKind;
+	/** In Textos, only the written ones or only the webs. */
+	only?: TextOnly;
 	tag?: string | null;
 }
 
 /**
- * Which tab a note is in, as `noteKind` says it: a web, to read; with a photo; said (recorded, on a
- * walk or to the voice); and written.
+ * Which tab a note is in, as `noteKind` says it: with a photo; said (recorded, on a walk or to the
+ * voice); and Textos, written or a web to read.
  */
 const OF_KIND: Record<NoteKind, () => SQL | undefined> = {
-	leer: () => isNotNull(note.link),
-	foto: () => and(isNull(note.link), isNotNull(note.photo)),
+	foto: () => isNotNull(note.photo),
 	voz: () => and(isNull(note.link), isNull(note.photo), ne(note.source, 'escrita')),
-	texto: () => and(isNull(note.link), isNull(note.photo), eq(note.source, 'escrita'))
+	texto: () => and(isNull(note.photo), or(isNotNull(note.link), eq(note.source, 'escrita')))
 };
 
 /**
@@ -331,6 +337,7 @@ function find(
 		);
 	}
 	if (filter.kind) where.push(OF_KIND[filter.kind]());
+	if (filter.only) where.push(filter.only === 'leer' ? isNotNull(note.link) : isNull(note.link));
 	if (filter.tag) where.push(arrayContains(note.tags, [filter.tag]));
 	return k.run((tx) =>
 		tx
@@ -382,14 +389,17 @@ export async function addWebNote(
 	return { id: row!.id, read: article !== null };
 }
 
-/** A web's note with its article, as `userId` may see it; null, not theirs to see. */
+/**
+ * A note, with its article if it is a web, as `userId` may see it, to read it whole; null, not
+ * theirs to see.
+ */
 export async function noteArticle(k: Kitchen, userId: string, id: number) {
 	const [row] = await k.run((tx) =>
 		tx
 			.select({ ...VIEW, full: note.article })
 			.from(note)
 			.leftJoin(user, eq(user.id, note.userId))
-			.where(and(eq(note.id, id), visibleTo(userId), isNotNull(note.link)))
+			.where(and(eq(note.id, id), visibleTo(userId)))
 	);
 	if (!row) return null;
 	const { full, ...rest } = row;
