@@ -457,23 +457,36 @@ test('«Para leer» (#634): a web with its article, apart; found by what it says
 
 	const titles = async (filter: Parameters<typeof listNotes>[3], words: string | null = null) =>
 		(await listNotes(ana, 'ana', words, filter)).map((x) => x.text).sort();
-	expect(await titles({ kind: 'leer' })).toEqual(['De pago', 'Pan de masa madre']);
-	expect(await titles({ kind: 'texto' })).toEqual(['Comprar centeno']);
+	// Textos (2026-11-28): the written ones and the webs, or only one of them.
+	expect(await titles({ kind: 'texto' })).toEqual([
+		'Comprar centeno',
+		'De pago',
+		'Pan de masa madre'
+	]);
+	expect(await titles({ kind: 'texto', only: 'leer' })).toEqual(['De pago', 'Pan de masa madre']);
+	expect(await titles({ kind: 'texto', only: 'notas' })).toEqual(['Comprar centeno']);
 	expect(await titles({ kind: 'voz' })).toEqual([]);
 	// What the article says, too; accents aside.
 	expect(await titles({}, 'CENTÉNO')).toEqual(['Comprar centeno', 'Pan de masa madre']);
 	expect(await titles({ tag: 'compra' })).toEqual(['Comprar centeno']);
 
-	const [web] = await listNotes(ana, 'ana', null, { kind: 'leer', tag: 'cocina' });
+	const [web] = await listNotes(ana, 'ana', null, { kind: 'texto', only: 'leer', tag: 'cocina' });
+	// How it starts, for its card.
 	expect(web).toMatchObject({
 		link: 'https://pan.es/masa-madre',
-		article: { minutes: 4, site: 'Pan' },
+		article: { minutes: 4, site: 'Pan', excerpt: 'Harina, agua y paciencia: el centeno ayuda.' },
 		tags: ['cocina']
 	});
 	expect((await noteArticle(ana, 'ana', read.id))!.article!.html).toBe(
 		'<p>Harina, agua y paciencia.</p>'
 	);
 	expect((await noteArticle(ana, 'ana', paid.id))!.article).toBeNull();
+	// A written one, read whole too: without an article.
+	const [written] = await listNotes(ana, 'ana', null, { kind: 'texto', only: 'notas' });
+	expect(await noteArticle(ana, 'ana', written!.id)).toMatchObject({
+		note: { text: 'Comprar centeno' },
+		article: null
+	});
 	// Another's, not shared: neither seen nor changed.
 	expect(await noteArticle(kitchen('luis'), 'luis', read.id)).toBeNull();
 	expect(await setNoteTags(kitchen('luis'), 'luis', read.id, ['mía'])).toBe(false);
@@ -491,8 +504,8 @@ test('Notas’ tabs: each note in one, as the page says it', async () => {
 	const all = await listNotes(ana, 'ana', null);
 	for (const kind of NOTE_KINDS) {
 		const listed = await listNotes(ana, 'ana', null, { kind });
-		expect(listed).toHaveLength(1);
-		expect(noteKind(listed[0]!)).toBe(kind);
+		expect(listed).toHaveLength(kind === 'texto' ? 2 : 1);
+		for (const n of listed) expect(noteKind(n)).toBe(kind);
 	}
-	expect(all.map((n) => noteKind(n)).sort()).toEqual(['foto', 'leer', 'texto', 'voz']);
+	expect(all.map((n) => noteKind(n)).sort()).toEqual(['foto', 'texto', 'texto', 'voz']);
 });

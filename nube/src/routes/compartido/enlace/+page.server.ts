@@ -126,7 +126,7 @@ export const actions: Actions = {
 			.trim()
 			.slice(0, 300);
 		const { id, read } = await addWebNote(await kitchenOf(userId), userId, { link, title });
-		redirect(303, `/notas/${id}/leer${read ? '' : '?sin=1'}`);
+		redirect(303, `/notas?texto&ver=${id}${read ? '' : '&sin'}`);
 	},
 	wish: async ({ request, locals }) => {
 		const userId = locals.user!.id;
